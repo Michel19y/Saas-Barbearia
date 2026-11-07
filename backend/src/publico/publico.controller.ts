@@ -14,10 +14,10 @@ export class PublicoController {
   @Get('horarios')
   horarios(
     @Param('slug') slug: string,
-    @Query('servicoId') servicoId: string,
+    @Query('servicoIds') servicoIds: string,
     @Query('data') data: string,
   ) {
-    return this.publicoService.horariosDisponiveis(slug, servicoId, data);
+    return this.publicoService.horariosDisponiveis(slug, servicoIds, data);
   }
 
   @Post('agendamento')

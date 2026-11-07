@@ -1,4 +1,4 @@
-import { IsDateString, IsString, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsDateString, IsString, MinLength } from 'class-validator';
 
 export class CriarAgendamentoPublicoDto {
   @IsString()
@@ -9,8 +9,10 @@ export class CriarAgendamentoPublicoDto {
   @MinLength(8)
   telefone!: string;
 
-  @IsString()
-  servicoId!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  servicoIds!: string[];
 
   @IsDateString()
   inicio!: string;

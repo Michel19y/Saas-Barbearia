@@ -16,6 +16,19 @@ export class PublicoService {
     return barbearia;
   }
 
+  private async getServicosOrdenados(barbeariaId: string, servicoIds: string[]) {
+    if (servicoIds.length === 0) {
+      throw new NotFoundException('Selecione pelo menos um serviço');
+    }
+    const servicos = await this.prisma.servico.findMany({
+      where: { id: { in: servicoIds }, barbeariaId, ativo: true },
+    });
+    if (servicos.length !== new Set(servicoIds).size) {
+      throw new NotFoundException('Um ou mais serviços não encontrados');
+    }
+    return servicoIds.map((id) => servicos.find((s) => s.id === id)!);
+  }
+
   async listarServicos(slug: string) {
     const barbearia = await this.getBarbeariaPorSlug(slug);
     return this.prisma.servico.findMany({
@@ -25,12 +38,14 @@ export class PublicoService {
     });
   }
 
-  async horariosDisponiveis(slug: string, servicoId: string, dataStr: string) {
+  async horariosDisponiveis(slug: string, servicoIdsStr: string, dataStr: string) {
     const barbearia = await this.getBarbeariaPorSlug(slug);
-    const servico = await this.prisma.servico.findFirst({
-      where: { id: servicoId, barbeariaId: barbearia.id, ativo: true },
-    });
-    if (!servico) throw new NotFoundException('Serviço não encontrado');
+    const servicoIds = servicoIdsStr
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const servicos = await this.getServicosOrdenados(barbearia.id, servicoIds);
+    const duracaoTotal = servicos.reduce((soma, s) => soma + s.duracaoMin, 0);
 
     const [ano, mes, dia] = dataStr.split('-').map(Number);
     if (!ano || !mes || !dia) throw new NotFoundException('Data inválida');
@@ -54,7 +69,7 @@ export class PublicoService {
       slot < fechamento;
       slot = new Date(slot.getTime() + PASSO_MIN * 60000)
     ) {
-      const fimSlot = new Date(slot.getTime() + servico.duracaoMin * 60000);
+      const fimSlot = new Date(slot.getTime() + duracaoTotal * 60000);
       if (fimSlot > fechamento) break;
 
       const conflita = agendamentosDoDia.some((a) => slot < a.fim && fimSlot > a.inicio);
@@ -68,10 +83,8 @@ export class PublicoService {
 
   async criarAgendamentoPublico(slug: string, dto: CriarAgendamentoPublicoDto) {
     const barbearia = await this.getBarbeariaPorSlug(slug);
-    const servico = await this.prisma.servico.findFirst({
-      where: { id: dto.servicoId, barbeariaId: barbearia.id, ativo: true },
-    });
-    if (!servico) throw new NotFoundException('Serviço não encontrado');
+    const servicos = await this.getServicosOrdenados(barbearia.id, dto.servicoIds);
+    const duracaoTotal = servicos.reduce((soma, s) => soma + s.duracaoMin, 0);
 
     const profissional = await this.prisma.usuario.findFirst({
       where: { barbeariaId: barbearia.id, ativo: true },
@@ -80,13 +93,13 @@ export class PublicoService {
     if (!profissional) throw new NotFoundException('Barbearia sem profissional disponível');
 
     const inicio = new Date(dto.inicio);
-    const fim = new Date(inicio.getTime() + servico.duracaoMin * 60000);
+    const fimTotal = new Date(inicio.getTime() + duracaoTotal * 60000);
 
     const conflito = await this.prisma.agendamento.findFirst({
       where: {
         barbeariaId: barbearia.id,
         status: { notIn: ['CANCELADO'] },
-        inicio: { lt: fim },
+        inicio: { lt: fimTotal },
         fim: { gt: inicio },
       },
     });
@@ -104,16 +117,26 @@ export class PublicoService {
       });
     }
 
-    return this.prisma.agendamento.create({
-      data: {
-        barbeariaId: barbearia.id,
-        clienteId: cliente.id,
-        profissionalId: profissional.id,
-        servicoId: servico.id,
-        inicio,
-        fim,
-        status: 'PENDENTE',
-      },
-    });
+    const criados = [];
+    let cursor = inicio;
+    for (const servico of servicos) {
+      const fimServico = new Date(cursor.getTime() + servico.duracaoMin * 60000);
+      const agendamento = await this.prisma.agendamento.create({
+        data: {
+          barbeariaId: barbearia.id,
+          clienteId: cliente.id,
+          profissionalId: profissional.id,
+          servicoId: servico.id,
+          inicio: cursor,
+          fim: fimServico,
+          status: 'PENDENTE',
+        },
+        include: { servico: true },
+      });
+      criados.push(agendamento);
+      cursor = fimServico;
+    }
+
+    return criados;
   }
 }

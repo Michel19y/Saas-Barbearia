@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState, type FormEvent } from "react";
+import { use, useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiFetch } from "@/lib/api";
 
 type Servico = {
@@ -10,10 +10,29 @@ type Servico = {
   precoCentavos: number;
 };
 
-function hojeISO() {
-  const d = new Date();
+function paraISO(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function hojeISO() {
+  return paraISO(new Date());
+}
+
+function proximosDias(quantidade: number) {
+  const dias: { iso: string; diaSemana: string; dia: number; rotulo?: string }[] = [];
+  const hoje = new Date();
+  for (let i = 0; i < quantidade; i++) {
+    const d = new Date(hoje);
+    d.setDate(hoje.getDate() + i);
+    dias.push({
+      iso: paraISO(d),
+      diaSemana: d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", ""),
+      dia: d.getDate(),
+      rotulo: i === 0 ? "Hoje" : i === 1 ? "Amanhã" : undefined,
+    });
+  }
+  return dias;
 }
 
 export default function AgendarPage({
@@ -22,9 +41,10 @@ export default function AgendarPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  const dias = useMemo(() => proximosDias(14), []);
 
   const [servicos, setServicos] = useState<Servico[]>([]);
-  const [servicoId, setServicoId] = useState("");
+  const [servicoIds, setServicoIds] = useState<string[]>([]);
   const [data, setData] = useState(hojeISO());
   const [horarios, setHorarios] = useState<string[]>([]);
   const [horarioEscolhido, setHorarioEscolhido] = useState<string | null>(null);
@@ -40,23 +60,36 @@ export default function AgendarPage({
     apiFetch(`/publico/${slug}/servicos`)
       .then((lista: Servico[]) => {
         setServicos(lista);
-        if (lista.length > 0) setServicoId(lista[0].id);
+        if (lista.length > 0) setServicoIds([lista[0].id]);
       })
       .catch(() => setErro("Não consegui carregar os serviços dessa barbearia."))
       .finally(() => setCarregandoServicos(false));
   }, [slug]);
 
   useEffect(() => {
-    if (!servicoId || !data) return;
+    if (servicoIds.length === 0 || !data) {
+      setHorarios([]);
+      return;
+    }
     setCarregandoHorarios(true);
     setHorarioEscolhido(null);
     apiFetch(
-      `/publico/${slug}/horarios?servicoId=${encodeURIComponent(servicoId)}&data=${encodeURIComponent(data)}`,
+      `/publico/${slug}/horarios?servicoIds=${encodeURIComponent(servicoIds.join(","))}&data=${encodeURIComponent(data)}`,
     )
       .then(setHorarios)
       .catch(() => setHorarios([]))
       .finally(() => setCarregandoHorarios(false));
-  }, [slug, servicoId, data]);
+  }, [slug, servicoIds, data]);
+
+  function alternarServico(id: string) {
+    setServicoIds((atual) =>
+      atual.includes(id) ? atual.filter((s) => s !== id) : [...atual, id],
+    );
+  }
+
+  const servicosSelecionados = servicos.filter((s) => servicoIds.includes(s.id));
+  const duracaoTotal = servicosSelecionados.reduce((soma, s) => soma + s.duracaoMin, 0);
+  const precoTotal = servicosSelecionados.reduce((soma, s) => soma + s.precoCentavos, 0);
 
   async function handleConfirmar(e: FormEvent) {
     e.preventDefault();
@@ -69,7 +102,7 @@ export default function AgendarPage({
         body: JSON.stringify({
           nome,
           telefone,
-          servicoId,
+          servicoIds,
           inicio: horarioEscolhido,
         }),
       });
@@ -101,10 +134,10 @@ export default function AgendarPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-md px-4 py-10">
-      <h1 className="mb-1 text-2xl font-semibold">Agendar horário</h1>
-      <p className="mb-6 text-sm text-zinc-500">
-        Escolha o serviço, a data e um horário disponível.
+    <div className="mx-auto w-full max-w-4xl px-4 py-10">
+      <h1 className="mb-1 text-3xl font-semibold">Agendar horário</h1>
+      <p className="mb-8 text-base text-zinc-500">
+        Escolha o serviço, o dia e um horário disponível.
       </p>
 
       {carregandoServicos && <p className="text-sm text-zinc-500">Carregando...</p>}
@@ -116,62 +149,110 @@ export default function AgendarPage({
       )}
 
       {!carregandoServicos && servicos.length > 0 && (
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs text-zinc-500">Serviço</label>
-            <select
-              value={servicoId}
-              onChange={(e) => setServicoId(e.target.value)}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            >
-              {servicos.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nome} · {s.duracaoMin} min · R$ {(s.precoCentavos / 100).toFixed(2)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs text-zinc-500">Data</label>
-            <input
-              type="date"
-              min={hojeISO()}
-              value={data}
-              onChange={(e) => setData(e.target.value)}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs text-zinc-500">Horários disponíveis</label>
-            {carregandoHorarios && (
-              <p className="text-sm text-zinc-500">Carregando horários...</p>
-            )}
-            {!carregandoHorarios && horarios.length === 0 && (
-              <p className="text-sm text-zinc-500">
-                Nenhum horário livre nesse dia. Tente outra data.
-              </p>
-            )}
-            {!carregandoHorarios && horarios.length > 0 && (
-              <div className="grid grid-cols-4 gap-2">
-                {horarios.map((h) => (
+        <div className="space-y-8">
+          <div className="space-y-3">
+            <label className="text-sm text-zinc-500">
+              Serviços (pode escolher mais de um — ex: corte + barba + sobrancelha)
+            </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {servicos.map((s) => {
+                const selecionado = servicoIds.includes(s.id);
+                return (
                   <button
-                    key={h}
+                    key={s.id}
                     type="button"
-                    onClick={() => setHorarioEscolhido(h)}
-                    className={`rounded-md border px-2 py-1.5 text-sm ${
-                      horarioEscolhido === h
-                        ? "border-zinc-950 bg-zinc-950 text-white"
+                    onClick={() => alternarServico(s.id)}
+                    className={`flex items-start gap-3 rounded-lg border-2 px-5 py-4 text-left transition-colors ${
+                      selecionado
+                        ? "border-green-600 bg-green-50 text-green-900"
                         : "border-zinc-300 hover:border-zinc-950"
                     }`}
                   >
-                    {new Date(h).toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    <span
+                      className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 text-xs ${
+                        selecionado
+                          ? "border-green-600 bg-green-600 text-white"
+                          : "border-zinc-300"
+                      }`}
+                    >
+                      {selecionado && "✓"}
+                    </span>
+                    <span>
+                      <p className="text-lg font-semibold">{s.nome}</p>
+                      <p className={selecionado ? "text-green-700" : "text-zinc-500"}>
+                        {s.duracaoMin} min · R$ {(s.precoCentavos / 100).toFixed(2)}
+                      </p>
+                    </span>
                   </button>
-                ))}
+                );
+              })}
+            </div>
+            {servicosSelecionados.length > 1 && (
+              <p className="text-sm font-medium text-zinc-700">
+                Total: {duracaoTotal} min · R$ {(precoTotal / 100).toFixed(2)}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm text-zinc-500">Dia</label>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {dias.map((d) => {
+                const selecionado = data === d.iso;
+                return (
+                  <button
+                    key={d.iso}
+                    type="button"
+                    onClick={() => setData(d.iso)}
+                    className={`flex w-20 shrink-0 flex-col items-center rounded-lg border-2 py-3 transition-colors ${
+                      selecionado
+                        ? "border-green-600 bg-green-50 text-green-900"
+                        : "border-zinc-300 hover:border-zinc-950"
+                    }`}
+                  >
+                    <span className="text-xs uppercase">{d.rotulo ?? d.diaSemana}</span>
+                    <span className="text-2xl font-semibold">{d.dia}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm text-zinc-500">Horários disponíveis</label>
+            {servicosSelecionados.length === 0 && (
+              <p className="text-sm text-zinc-500">Escolha pelo menos um serviço.</p>
+            )}
+            {servicosSelecionados.length > 0 && carregandoHorarios && (
+              <p className="text-sm text-zinc-500">Carregando horários...</p>
+            )}
+            {servicosSelecionados.length > 0 && !carregandoHorarios && horarios.length === 0 && (
+              <p className="text-sm text-zinc-500">
+                Nenhum horário livre nesse dia. Escolha outro dia.
+              </p>
+            )}
+            {!carregandoHorarios && horarios.length > 0 && (
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                {horarios.map((h) => {
+                  const selecionado = horarioEscolhido === h;
+                  return (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setHorarioEscolhido(h)}
+                      className={`rounded-lg border-2 py-3 text-base font-medium transition-colors ${
+                        selecionado
+                          ? "border-green-600 bg-green-600 text-white"
+                          : "border-zinc-300 hover:border-zinc-950"
+                      }`}
+                    >
+                      {new Date(h).toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
