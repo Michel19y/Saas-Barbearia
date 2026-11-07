@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PlanoStatus {
+  TRIAL
+  ATIVO
+  INADIMPLENTE
+  CANCELADO
+}
+
+enum PapelUsuario {
+  DONO
+  PROFISSIONAL
+  RECEPCAO
+}
+
+enum StatusAgendamento {
+  PENDENTE
+  CONFIRMADO
+  CONCLUIDO
+  CANCELADO
+  NAO_COMPARECEU
+}
+
+// Tenant: cada barbearia é um tenant isolado
+model Barbearia {
+  id             String      @id @default(cuid())
+  nome           String
+  slug           String      @unique
+  telefone       String?
+  enderecoCidade String?
+  planoStatus    PlanoStatus @default(TRIAL)
+  stripeCustomerId       String? @unique
+  stripeSubscriptionId   String? @unique
+  criadoEm       DateTime    @default(now())
+  atualizadoEm   DateTime    @updatedAt
+
+  usuarios     Usuario[]
+  servicos     Servico[]
+  clientes     Cliente[]
+  agendamentos Agendamento[]
+  atendimentos Atendimento[]
+
+  @@map("barbearias")
+}
+
+model Usuario {
+  id          String       @id @default(cuid())
+  barbeariaId String
+  barbearia   Barbearia    @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+
+  nome        String
+  email       String
+  senhaHash   String
+  papel       PapelUsuario @default(PROFISSIONAL)
+  ativo       Boolean      @default(true)
+  criadoEm    DateTime     @default(now())
+
+  googleRefreshToken String?
+
+  agendamentos Agendamento[] @relation("ProfissionalAgendamentos")
+
+  @@unique([barbeariaId, email])
+  @@map("usuarios")
+}
+
+model Servico {
+  id           String   @id @default(cuid())
+  barbeariaId  String
+  barbearia    Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+
+  nome         String
+  duracaoMin   Int
+  precoCentavos Int
+  ativo        Boolean  @default(true)
+
+  agendamentos Agendamento[]
+  atendimentos Atendimento[]
+
+  @@map("servicos")
+}
+
+model Cliente {
+  id          String    @id @default(cuid())
+  barbeariaId String
+  barbearia   Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+
+  nome        String
+  telefone    String?
+  email       String?
+  criadoEm    DateTime  @default(now())
+
+  agendamentos Agendamento[]
+  atendimentos Atendimento[]
+
+  @@unique([barbeariaId, telefone])
+  @@map("clientes")
+}
+
+model Agendamento {
+  id             String            @id @default(cuid())
+  barbeariaId    String
+  barbearia      Barbearia         @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+
+  clienteId      String
+  cliente        Cliente           @relation(fields: [clienteId], references: [id])
+
+  profissionalId String
+  profissional   Usuario           @relation("ProfissionalAgendamentos", fields: [profissionalId], references: [id])
+
+  servicoId      String
+  servico        Servico           @relation(fields: [servicoId], references: [id])
+
+  inicio         DateTime
+  fim            DateTime
+  status         StatusAgendamento @default(PENDENTE)
+  observacao     String?
+
+  criadoEm       DateTime          @default(now())
+  atualizadoEm   DateTime          @updatedAt
+
+  @@index([barbeariaId, inicio])
+  @@index([profissionalId, inicio])
+  @@map("agendamentos")
+}
+
+// Registro histórico de um atendimento já realizado (ex: importado de planilha)
+model Atendimento {
+  id             String    @id @default(cuid())
+  barbeariaId    String
+  barbearia      Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+
+  clienteId      String
+  cliente        Cliente   @relation(fields: [clienteId], references: [id])
+
+  servicoId      String
+  servico        Servico   @relation(fields: [servicoId], references: [id])
+
+  data             DateTime
+  formaPagamento   String
+  valorCentavos    Int
+  profissionalNome String?
+
+  criadoEm       DateTime  @default(now())
+
+  @@index([barbeariaId, data])
+  @@map("atendimentos")
+}
