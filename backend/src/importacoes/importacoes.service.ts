@@ -76,6 +76,7 @@ export class ImportacoesService {
             data: {
               barbeariaId,
               clienteId: cliente.id,
+              clienteNome: cliente.nome,
               servicoId: servico.id,
               data: dataHora,
               formaPagamento,

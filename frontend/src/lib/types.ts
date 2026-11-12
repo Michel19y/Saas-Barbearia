@@ -22,12 +22,13 @@ export type StatusAgendamento =
 
 export type Agendamento = {
   id: string;
-  clienteId: string;
+  clienteId: string | null;
+  clienteNome: string;
   servicoId: string;
   inicio: string;
   fim: string;
   status: StatusAgendamento;
   observacao: string | null;
-  cliente: Cliente;
+  cliente: Cliente | null;
   servico: Servico;
 };

@@ -52,16 +52,16 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="border-b border-zinc-200">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <nav className="flex gap-4 text-sm">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3">
+          <nav className="flex flex-wrap gap-1 text-sm">
             {LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={
                   pathname.startsWith(link.href)
-                    ? "font-medium text-zinc-950"
-                    : "text-zinc-500 hover:text-zinc-950"
+                    ? "inline-flex min-h-11 items-center rounded-md px-2 font-semibold text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    : "inline-flex min-h-11 items-center rounded-md px-2 text-zinc-700 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
                 }
               >
                 {link.label}
@@ -72,7 +72,7 @@ export default function DashboardLayout({
             {papel && <span className="text-xs text-zinc-500">{papel}</span>}
             <button
               onClick={handleLogout}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs"
+              className="min-h-11 rounded-md border border-zinc-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
             >
               Sair
             </button>
@@ -86,7 +86,7 @@ export default function DashboardLayout({
             <Link
               href={`/agendar/${slug}`}
               target="_blank"
-              className="font-medium text-zinc-950 underline"
+              className="font-semibold text-zinc-950 underline"
             >
               {typeof window !== "undefined" ? window.location.origin : ""}
               /agendar/{slug}

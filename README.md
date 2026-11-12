@@ -26,7 +26,7 @@ Donos de barbearias pequenas e médias hoje organizam a agenda por WhatsApp, cad
 - **RF02** — O sistema deve autenticar usuários (dono, profissional, recepção) por e-mail e senha, retornando um token JWT (`POST /auth/login`).
 - **RF03** — O dono deve poder cadastrar, editar e desativar serviços (nome, duração em minutos, preço).
 - **RF04** — O dono ou a recepção deve poder cadastrar e editar clientes (nome, telefone, e-mail opcional).
-- **RF05** — O sistema deve permitir criar um agendamento vinculando cliente, profissional, serviço e horário de início, calculando o horário de fim a partir da duração do serviço.
+- **RF05** — O sistema deve permitir criar um agendamento interno com um cliente cadastrado ou uma identificação livre, além de profissional, serviço e horário de início; o horário de fim é calculado pela duração do serviço. Agendamentos públicos continuam solicitando nome e telefone.
 - **RF06** — O sistema deve rejeitar a criação ou edição de um agendamento que sobreponha outro agendamento já existente do mesmo profissional.
 - **RF07** — O cliente final deve poder consultar os serviços e os horários disponíveis de uma barbearia pela página pública (por `slug`), sem precisar criar conta, e confirmar um agendamento.
 - **RF08** — O dono deve poder conectar sua conta do Google (OAuth) para permitir que o sistema leia uma planilha do Google Sheets.
@@ -49,7 +49,7 @@ Donos de barbearias pequenas e médias hoje organizam a agenda por WhatsApp, cad
 - [ ] O sistema rejeita duração menor que 5 minutos.
 - [ ] Um serviço desativado deixa de aparecer nas opções de agendamento (inclusive na página pública).
 
-**US02 — Must** — Como dono de barbearia, quero agendar um horário para um cliente com um profissional específico, para evitar conflitos de agenda.
+**US02 — Must** — Como dono de barbearia, quero agendar um horário para um cliente cadastrado ou registrar uma identificação rápida, com um profissional específico, para evitar conflitos de agenda sem exigir cadastro para todo atendimento.
 - [ ] O sistema rejeita um agendamento que sobreponha outro do mesmo profissional.
 - [ ] O horário de fim é calculado automaticamente a partir da duração do serviço escolhido.
 - [ ] O agendamento criado aparece imediatamente na listagem de agendamentos da barbearia.

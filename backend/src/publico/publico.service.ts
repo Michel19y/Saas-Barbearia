@@ -125,6 +125,7 @@ export class PublicoService {
         data: {
           barbeariaId: barbearia.id,
           clienteId: cliente.id,
+          clienteNome: cliente.nome,
           profissionalId: profissional.id,
           servicoId: servico.id,
           inicio: cursor,

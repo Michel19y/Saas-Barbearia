@@ -29,16 +29,16 @@ enum StatusAgendamento {
 
 // Tenant: cada barbearia é um tenant isolado
 model Barbearia {
-  id             String      @id @default(cuid())
-  nome           String
-  slug           String      @unique
-  telefone       String?
-  enderecoCidade String?
-  planoStatus    PlanoStatus @default(TRIAL)
-  stripeCustomerId       String? @unique
-  stripeSubscriptionId   String? @unique
-  criadoEm       DateTime    @default(now())
-  atualizadoEm   DateTime    @updatedAt
+  id                   String      @id @default(cuid())
+  nome                 String
+  slug                 String      @unique
+  telefone             String?
+  enderecoCidade       String?
+  planoStatus          PlanoStatus @default(TRIAL)
+  stripeCustomerId     String?     @unique
+  stripeSubscriptionId String?     @unique
+  criadoEm             DateTime    @default(now())
+  atualizadoEm         DateTime    @updatedAt
 
   usuarios     Usuario[]
   servicos     Servico[]
@@ -50,16 +50,16 @@ model Barbearia {
 }
 
 model Usuario {
-  id          String       @id @default(cuid())
+  id          String    @id @default(cuid())
   barbeariaId String
-  barbearia   Barbearia    @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+  barbearia   Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
 
-  nome        String
-  email       String
-  senhaHash   String
-  papel       PapelUsuario @default(PROFISSIONAL)
-  ativo       Boolean      @default(true)
-  criadoEm    DateTime     @default(now())
+  nome      String
+  email     String
+  senhaHash String
+  papel     PapelUsuario @default(PROFISSIONAL)
+  ativo     Boolean      @default(true)
+  criadoEm  DateTime     @default(now())
 
   googleRefreshToken String?
 
@@ -70,14 +70,14 @@ model Usuario {
 }
 
 model Servico {
-  id           String   @id @default(cuid())
-  barbeariaId  String
-  barbearia    Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  barbeariaId String
+  barbearia   Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
 
-  nome         String
-  duracaoMin   Int
+  nome          String
+  duracaoMin    Int
   precoCentavos Int
-  ativo        Boolean  @default(true)
+  ativo         Boolean @default(true)
 
   agendamentos Agendamento[]
   atendimentos Atendimento[]
@@ -90,10 +90,10 @@ model Cliente {
   barbeariaId String
   barbearia   Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
 
-  nome        String
-  telefone    String?
-  email       String?
-  criadoEm    DateTime  @default(now())
+  nome     String
+  telefone String?
+  email    String?
+  criadoEm DateTime @default(now())
 
   agendamentos Agendamento[]
   atendimentos Atendimento[]
@@ -103,26 +103,28 @@ model Cliente {
 }
 
 model Agendamento {
-  id             String            @id @default(cuid())
-  barbeariaId    String
-  barbearia      Barbearia         @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  barbeariaId String
+  barbearia   Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
 
-  clienteId      String
-  cliente        Cliente           @relation(fields: [clienteId], references: [id])
+  clienteId   String?
+  clienteNome String
+  cliente     Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
 
   profissionalId String
-  profissional   Usuario           @relation("ProfissionalAgendamentos", fields: [profissionalId], references: [id])
+  profissional   Usuario @relation("ProfissionalAgendamentos", fields: [profissionalId], references: [id])
 
-  servicoId      String
-  servico        Servico           @relation(fields: [servicoId], references: [id])
+  servicoId String
+  servico   Servico @relation(fields: [servicoId], references: [id])
 
-  inicio         DateTime
-  fim            DateTime
-  status         StatusAgendamento @default(PENDENTE)
-  observacao     String?
+  inicio      DateTime
+  fim         DateTime
+  status      StatusAgendamento @default(PENDENTE)
+  observacao  String?
+  atendimento Atendimento?
 
-  criadoEm       DateTime          @default(now())
-  atualizadoEm   DateTime          @updatedAt
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
   @@index([barbeariaId, inicio])
   @@index([profissionalId, inicio])
@@ -131,22 +133,25 @@ model Agendamento {
 
 // Registro histórico de um atendimento já realizado (ex: importado de planilha)
 model Atendimento {
-  id             String    @id @default(cuid())
-  barbeariaId    String
-  barbearia      Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+  id            String       @id @default(cuid())
+  agendamentoId String?      @unique
+  agendamento   Agendamento? @relation(fields: [agendamentoId], references: [id], onDelete: SetNull)
+  barbeariaId   String
+  barbearia     Barbearia    @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
 
-  clienteId      String
-  cliente        Cliente   @relation(fields: [clienteId], references: [id])
+  clienteId   String?
+  clienteNome String
+  cliente     Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
 
-  servicoId      String
-  servico        Servico   @relation(fields: [servicoId], references: [id])
+  servicoId String
+  servico   Servico @relation(fields: [servicoId], references: [id])
 
   data             DateTime
   formaPagamento   String
   valorCentavos    Int
   profissionalNome String?
 
-  criadoEm       DateTime  @default(now())
+  criadoEm DateTime @default(now())
 
   @@index([barbeariaId, data])
   @@map("atendimentos")

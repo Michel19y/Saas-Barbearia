@@ -31,7 +31,17 @@ export class ClientesService {
   async remove(barbeariaId: string, id: string) {
     await this.findOne(barbeariaId, id);
     try {
-      await this.prisma.cliente.delete({ where: { id } });
+      await this.prisma.$transaction(async (transaction) => {
+        await transaction.agendamento.updateMany({
+          where: { barbeariaId, clienteId: id },
+          data: { clienteNome: 'Cliente excluído' },
+        });
+        await transaction.atendimento.updateMany({
+          where: { barbeariaId, clienteId: id },
+          data: { clienteNome: 'Cliente excluído' },
+        });
+        await transaction.cliente.delete({ where: { id } });
+      });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
         throw new ConflictException('Não é possível excluir: cliente possui agendamentos');
