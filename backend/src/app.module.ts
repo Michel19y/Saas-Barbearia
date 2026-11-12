@@ -5,6 +5,7 @@ import { AppService } from './app.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ServicosModule } from './servicos/servicos.module.js';
+import { ProfissionaisModule } from './profissionais/profissionais.module.js';
 import { ClientesModule } from './clientes/clientes.module.js';
 import { AgendamentosModule } from './agendamentos/agendamentos.module.js';
 import { GoogleModule } from './google/google.module.js';
@@ -19,6 +20,7 @@ import { BarbeariaModule } from './barbearia/barbearia.module.js';
     PrismaModule,
     AuthModule,
     ServicosModule,
+    ProfissionaisModule,
     ClientesModule,
     AgendamentosModule,
     GoogleModule,

@@ -11,13 +11,24 @@ export class PublicoController {
     return this.publicoService.listarServicos(slug);
   }
 
+  @Get('profissionais')
+  listarProfissionais(@Param('slug') slug: string) {
+    return this.publicoService.listarProfissionais(slug);
+  }
+
   @Get('horarios')
   horarios(
     @Param('slug') slug: string,
     @Query('servicoIds') servicoIds: string,
     @Query('data') data: string,
+    @Query('profissionalId') profissionalId?: string,
   ) {
-    return this.publicoService.horariosDisponiveis(slug, servicoIds, data);
+    return this.publicoService.horariosDisponiveis(
+      slug,
+      servicoIds,
+      data,
+      profissionalId,
+    );
   }
 
   @Post('agendamento')

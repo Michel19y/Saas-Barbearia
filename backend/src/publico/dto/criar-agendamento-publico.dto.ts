@@ -1,4 +1,11 @@
-import { ArrayMinSize, IsArray, IsDateString, IsString, MinLength } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsDateString,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class CriarAgendamentoPublicoDto {
   @IsString()
@@ -16,4 +23,9 @@ export class CriarAgendamentoPublicoDto {
 
   @IsDateString()
   inicio!: string;
+
+  // Opcional: sem ele, o sistema escolhe um profissional livre no horario
+  @IsOptional()
+  @IsString()
+  profissionalId?: string;
 }
