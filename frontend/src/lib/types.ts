@@ -32,3 +32,27 @@ export type Agendamento = {
   cliente: Cliente | null;
   servico: Servico;
 };
+
+export type LinhaResumo = {
+  rotulo: string;
+  quantidade: number;
+  totalCentavos: number;
+};
+
+export type ResumoFinanceiro = {
+  periodo: { de: string | null; ate: string | null };
+  totalCentavos: number;
+  quantidade: number;
+  ticketMedioCentavos: number;
+  porFormaPagamento: LinhaResumo[];
+  porServico: LinhaResumo[];
+  porProfissional: LinhaResumo[];
+};
+
+export type Profissional = {
+  id: string;
+  nome: string;
+  email: string;
+  papel: string;
+  ativo: boolean;
+};
