@@ -6,6 +6,9 @@ const ABERTURA_HORA = 9;
 const FECHAMENTO_HORA = 21;
 const PASSO_MIN = 30;
 
+// Quem atende cliente. A recepção entra no sistema, mas não é agendável.
+const PAPEIS_AGENDAVEIS = ['DONO', 'PROFISSIONAL'] as const;
+
 @Injectable()
 export class PublicoService {
   constructor(private readonly prisma: PrismaService) {}
@@ -29,6 +32,14 @@ export class PublicoService {
     return servicoIds.map((id) => servicos.find((s) => s.id === id)!);
   }
 
+  private getProfissionaisAgendaveis(barbeariaId: string) {
+    return this.prisma.usuario.findMany({
+      where: { barbeariaId, ativo: true, papel: { in: [...PAPEIS_AGENDAVEIS] } },
+      select: { id: true, nome: true },
+      orderBy: { criadoEm: 'asc' },
+    });
+  }
+
   async listarServicos(slug: string) {
     const barbearia = await this.getBarbeariaPorSlug(slug);
     return this.prisma.servico.findMany({
@@ -38,7 +49,17 @@ export class PublicoService {
     });
   }
 
-  async horariosDisponiveis(slug: string, servicoIdsStr: string, dataStr: string) {
+  async listarProfissionais(slug: string) {
+    const barbearia = await this.getBarbeariaPorSlug(slug);
+    return this.getProfissionaisAgendaveis(barbearia.id);
+  }
+
+  async horariosDisponiveis(
+    slug: string,
+    servicoIdsStr: string,
+    dataStr: string,
+    profissionalId?: string,
+  ) {
     const barbearia = await this.getBarbeariaPorSlug(slug);
     const servicoIds = servicoIdsStr
       .split(',')
@@ -50,17 +71,26 @@ export class PublicoService {
     const [ano, mes, dia] = dataStr.split('-').map(Number);
     if (!ano || !mes || !dia) throw new NotFoundException('Data inválida');
 
+    const profissionais = await this.getProfissionaisAgendaveis(barbearia.id);
+    const candidatos = profissionalId
+      ? profissionais.filter((p) => p.id === profissionalId)
+      : profissionais;
+    if (candidatos.length === 0) {
+      throw new NotFoundException('Profissional não encontrado');
+    }
+
     const abertura = new Date(ano, mes - 1, dia, ABERTURA_HORA, 0, 0, 0);
     const fechamento = new Date(ano, mes - 1, dia, FECHAMENTO_HORA, 0, 0, 0);
 
     const agendamentosDoDia = await this.prisma.agendamento.findMany({
       where: {
         barbeariaId: barbearia.id,
+        profissionalId: { in: candidatos.map((p) => p.id) },
         status: { notIn: ['CANCELADO'] },
         inicio: { lt: fechamento },
         fim: { gt: abertura },
       },
-      select: { inicio: true, fim: true },
+      select: { inicio: true, fim: true, profissionalId: true },
     });
 
     const horarios: string[] = [];
@@ -71,11 +101,13 @@ export class PublicoService {
     ) {
       const fimSlot = new Date(slot.getTime() + duracaoTotal * 60000);
       if (fimSlot > fechamento) break;
+      if (slot.getTime() <= Date.now()) continue;
 
-      const conflita = agendamentosDoDia.some((a) => slot < a.fim && fimSlot > a.inicio);
-      if (!conflita && slot.getTime() > Date.now()) {
-        horarios.push(slot.toISOString());
-      }
+      // O horário aparece se ao menos um dos profissionais candidatos está livre.
+      const alguemLivre = candidatos.some((profissional) =>
+        this.estaLivre(agendamentosDoDia, profissional.id, slot, fimSlot),
+      );
+      if (alguemLivre) horarios.push(slot.toISOString());
     }
 
     return horarios;
@@ -86,24 +118,36 @@ export class PublicoService {
     const servicos = await this.getServicosOrdenados(barbearia.id, dto.servicoIds);
     const duracaoTotal = servicos.reduce((soma, s) => soma + s.duracaoMin, 0);
 
-    const profissional = await this.prisma.usuario.findFirst({
-      where: { barbeariaId: barbearia.id, ativo: true },
-      orderBy: { criadoEm: 'asc' },
-    });
-    if (!profissional) throw new NotFoundException('Barbearia sem profissional disponível');
+    const profissionais = await this.getProfissionaisAgendaveis(barbearia.id);
+    const candidatos = dto.profissionalId
+      ? profissionais.filter((p) => p.id === dto.profissionalId)
+      : profissionais;
+    if (candidatos.length === 0) {
+      throw new NotFoundException(
+        dto.profissionalId
+          ? 'Profissional não encontrado'
+          : 'Barbearia sem profissional disponível',
+      );
+    }
 
     const inicio = new Date(dto.inicio);
     const fimTotal = new Date(inicio.getTime() + duracaoTotal * 60000);
 
-    const conflito = await this.prisma.agendamento.findFirst({
+    const ocupados = await this.prisma.agendamento.findMany({
       where: {
         barbeariaId: barbearia.id,
+        profissionalId: { in: candidatos.map((p) => p.id) },
         status: { notIn: ['CANCELADO'] },
         inicio: { lt: fimTotal },
         fim: { gt: inicio },
       },
+      select: { inicio: true, fim: true, profissionalId: true },
     });
-    if (conflito) {
+
+    const escolhido = candidatos.find((profissional) =>
+      this.estaLivre(ocupados, profissional.id, inicio, fimTotal),
+    );
+    if (!escolhido) {
       throw new ConflictException('Esse horário acabou de ser ocupado, escolha outro');
     }
 
@@ -126,18 +170,30 @@ export class PublicoService {
           barbeariaId: barbearia.id,
           clienteId: cliente.id,
           clienteNome: cliente.nome,
-          profissionalId: profissional.id,
+          profissionalId: escolhido.id,
           servicoId: servico.id,
           inicio: cursor,
           fim: fimServico,
           status: 'PENDENTE',
         },
-        include: { servico: true },
+        include: { servico: true, profissional: { select: { nome: true } } },
       });
       criados.push(agendamento);
       cursor = fimServico;
     }
 
     return criados;
+  }
+
+  private estaLivre(
+    agendamentos: { inicio: Date; fim: Date; profissionalId: string }[],
+    profissionalId: string,
+    inicio: Date,
+    fim: Date,
+  ) {
+    return !agendamentos.some(
+      (a) =>
+        a.profissionalId === profissionalId && inicio < a.fim && fim > a.inicio,
+    );
   }
 }

@@ -118,7 +118,7 @@ function StatusSelect({
         );
         if (status) onChange(status, event.currentTarget);
       }}
-      className="min-h-11 max-w-full rounded-md border border-zinc-300 bg-white px-2 text-base leading-6 text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:opacity-70"
+      className="campo-select min-h-11 max-w-full rounded-md border border-zinc-300 bg-white px-2 text-base leading-6 text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:opacity-70"
     >
       {STATUS_OPCOES.map((status) => (
         <option key={status} value={status}>
@@ -562,7 +562,7 @@ export default function AgendamentosPage() {
       )}
 
       <section aria-label="Lista de agendamentos" className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(15rem,auto)_15rem]">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(15rem,auto)_15rem] md:items-end">
           <CampoBusca
             value={termo}
             onChange={setTermo}
@@ -615,7 +615,7 @@ export default function AgendamentosPage() {
               onChange={(event) =>
                 setFiltroStatus(event.target.value as FiltroStatus)
               }
-              className="min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="campo-select min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
             >
               <option value="TODOS">Todos os status</option>
               {STATUS_OPCOES.map((status) => (

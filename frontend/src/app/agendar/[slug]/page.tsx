@@ -2,6 +2,12 @@
 
 import { use, useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiFetch } from "@/lib/api";
+import { formatarPreco } from "@/lib/formato";
+
+type Profissional = {
+  id: string;
+  nome: string;
+};
 
 type Servico = {
   id: string;
@@ -45,6 +51,8 @@ export default function AgendarPage({
 
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [servicoIds, setServicoIds] = useState<string[]>([]);
+  const [profissionais, setProfissionais] = useState<Profissional[]>([]);
+  const [profissionalId, setProfissionalId] = useState("");
   const [data, setData] = useState(hojeISO());
   const [horarios, setHorarios] = useState<string[]>([]);
   const [horarioEscolhido, setHorarioEscolhido] = useState<string | null>(null);
@@ -64,6 +72,10 @@ export default function AgendarPage({
       })
       .catch(() => setErro("Não consegui carregar os serviços dessa barbearia."))
       .finally(() => setCarregandoServicos(false));
+
+    apiFetch(`/publico/${slug}/profissionais`)
+      .then(setProfissionais)
+      .catch(() => setProfissionais([]));
   }, [slug]);
 
   useEffect(() => {
@@ -74,12 +86,16 @@ export default function AgendarPage({
     setCarregandoHorarios(true);
     setHorarioEscolhido(null);
     apiFetch(
-      `/publico/${slug}/horarios?servicoIds=${encodeURIComponent(servicoIds.join(","))}&data=${encodeURIComponent(data)}`,
+      `/publico/${slug}/horarios?servicoIds=${encodeURIComponent(servicoIds.join(","))}&data=${encodeURIComponent(data)}${
+        profissionalId
+          ? `&profissionalId=${encodeURIComponent(profissionalId)}`
+          : ""
+      }`,
     )
       .then(setHorarios)
       .catch(() => setHorarios([]))
       .finally(() => setCarregandoHorarios(false));
-  }, [slug, servicoIds, data]);
+  }, [slug, servicoIds, data, profissionalId]);
 
   function alternarServico(id: string) {
     setServicoIds((atual) =>
@@ -104,6 +120,7 @@ export default function AgendarPage({
           telefone,
           servicoIds,
           inicio: horarioEscolhido,
+          ...(profissionalId ? { profissionalId } : {}),
         }),
       });
       setConfirmado(true);
@@ -180,7 +197,7 @@ export default function AgendarPage({
                     <span>
                       <p className="text-lg font-semibold">{s.nome}</p>
                       <p className={selecionado ? "text-green-700" : "text-zinc-500"}>
-                        {s.duracaoMin} min · R$ {(s.precoCentavos / 100).toFixed(2)}
+                        {s.duracaoMin} min · {formatarPreco(s.precoCentavos)}
                       </p>
                     </span>
                   </button>
@@ -189,10 +206,38 @@ export default function AgendarPage({
             </div>
             {servicosSelecionados.length > 1 && (
               <p className="text-sm font-medium text-zinc-700">
-                Total: {duracaoTotal} min · R$ {(precoTotal / 100).toFixed(2)}
+                Total: {duracaoTotal} min · {formatarPreco(precoTotal)}
               </p>
             )}
           </div>
+
+          {profissionais.length > 1 && (
+            <div className="space-y-3">
+              <label className="text-sm text-zinc-500">Profissional</label>
+              <div className="flex flex-wrap gap-3">
+                {[{ id: "", nome: "Qualquer um" }, ...profissionais].map(
+                  (profissional) => {
+                    const selecionado = profissionalId === profissional.id;
+                    return (
+                      <button
+                        key={profissional.id || "qualquer"}
+                        type="button"
+                        aria-pressed={selecionado}
+                        onClick={() => setProfissionalId(profissional.id)}
+                        className={`min-h-11 rounded-lg border-2 px-5 py-3 text-lg font-semibold transition-colors ${
+                          selecionado
+                            ? "border-green-600 bg-green-50 text-green-900"
+                            : "border-zinc-300 hover:border-zinc-950"
+                        }`}
+                      >
+                        {profissional.nome}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-3">
             <label className="text-sm text-zinc-500">Dia</label>
