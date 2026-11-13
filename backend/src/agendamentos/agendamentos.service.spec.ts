@@ -21,6 +21,7 @@ describe('AgendamentosService.update', () => {
     };
     servico: {
       findUnique: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
     };
     $transaction: ReturnType<typeof vi.fn>;
   };
@@ -76,6 +77,7 @@ describe('AgendamentosService.update', () => {
       },
       servico: {
         findUnique: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
       },
       $transaction: vi.fn(
         async (callback: (tx: typeof transaction) => Promise<unknown>) =>
@@ -126,15 +128,17 @@ describe('AgendamentosService.update', () => {
   });
 
   it('creates an appointment with a quick identification and no client record', async () => {
-    prisma.servico.findUnique.mockResolvedValue({
-      id: 'servico-1',
-      barbeariaId: 'barbearia-1',
-      duracaoMin: 30,
-    });
+    prisma.servico.findMany.mockResolvedValue([
+      {
+        id: 'servico-1',
+        barbeariaId: 'barbearia-1',
+        duracaoMin: 30,
+      },
+    ]);
 
     await service.create('barbearia-1', 'profissional-1', {
       clienteNome: ' veio ',
-      servicoId: 'servico-1',
+      servicoIds: ['servico-1'],
       inicio: inicio.toISOString(),
     });
 
@@ -160,7 +164,7 @@ describe('AgendamentosService.update', () => {
     await expect(
       service.create('barbearia-1', 'profissional-1', {
         clienteId: 'cliente-estrangeiro',
-        servicoId: 'servico-1',
+        servicoIds: ['servico-1'],
         inicio: inicio.toISOString(),
       }),
     ).rejects.toBeInstanceOf(NotFoundException);

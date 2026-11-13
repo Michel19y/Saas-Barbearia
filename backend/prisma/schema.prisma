@@ -123,11 +123,14 @@ model Agendamento {
   observacao  String?
   atendimento Atendimento?
 
+  grupoId String?
+
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
   @@index([barbeariaId, inicio])
   @@index([profissionalId, inicio])
+  @@index([grupoId])
   @@map("agendamentos")
 }
 

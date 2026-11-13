@@ -31,6 +31,7 @@ export type Agendamento = {
   observacao: string | null;
   cliente: Cliente | null;
   servico: Servico;
+  grupoId: string | null;
 };
 
 export type LinhaResumo = {
@@ -55,4 +56,11 @@ export type Profissional = {
   email: string;
   papel: string;
   ativo: boolean;
+};
+
+export type Barbearia = {
+  nome: string;
+  slug: string;
+  telefone: string | null;
+  enderecoCidade: string | null;
 };

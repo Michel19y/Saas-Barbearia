@@ -63,6 +63,7 @@ export default function AgendarPage({
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmado, setConfirmado] = useState(false);
+  const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
 
   useEffect(() => {
     apiFetch(`/publico/${slug}/servicos`)
@@ -107,8 +108,14 @@ export default function AgendarPage({
   const duracaoTotal = servicosSelecionados.reduce((soma, s) => soma + s.duracaoMin, 0);
   const precoTotal = servicosSelecionados.reduce((soma, s) => soma + s.precoCentavos, 0);
 
-  async function handleConfirmar(e: FormEvent) {
+  function handleRevisar(e: FormEvent) {
     e.preventDefault();
+    if (!horarioEscolhido) return;
+    setErro(null);
+    setMostrarConfirmacao(true);
+  }
+
+  async function confirmarEnvio() {
     if (!horarioEscolhido) return;
     setErro(null);
     setEnviando(true);
@@ -123,6 +130,7 @@ export default function AgendarPage({
           ...(profissionalId ? { profissionalId } : {}),
         }),
       });
+      setMostrarConfirmacao(false);
       setConfirmado(true);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Erro ao agendar");
@@ -131,10 +139,22 @@ export default function AgendarPage({
     }
   }
 
+  const nomeProfissionalEscolhido = profissionalId
+    ? profissionais.find((p) => p.id === profissionalId)?.nome
+    : "Qualquer profissional disponível";
+
+  function marcarDeNovo() {
+    setConfirmado(false);
+    setHorarioEscolhido(null);
+    setProfissionalId("");
+    setData(hojeISO());
+    if (servicos.length > 0) setServicoIds([servicos[0].id]);
+  }
+
   if (confirmado) {
     return (
       <div className="flex flex-1 items-center justify-center px-4">
-        <div className="max-w-sm space-y-2 text-center">
+        <div className="max-w-sm space-y-4 text-center">
           <h1 className="text-2xl font-semibold">Agendado!</h1>
           <p className="text-sm text-zinc-500">
             Seu horário foi marcado para{" "}
@@ -145,6 +165,13 @@ export default function AgendarPage({
               })}
             . Até lá!
           </p>
+          <button
+            type="button"
+            onClick={marcarDeNovo}
+            className="mx-auto min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50"
+          >
+            Marcar outro horário
+          </button>
         </div>
       </div>
     );
@@ -303,7 +330,7 @@ export default function AgendarPage({
           </div>
 
           {horarioEscolhido && (
-            <form onSubmit={handleConfirmar} className="space-y-3 border-t border-zinc-200 pt-4">
+            <form onSubmit={handleRevisar} className="space-y-3 border-t border-zinc-200 pt-4">
               <div className="space-y-1">
                 <label className="text-xs text-zinc-500">Seu nome</label>
                 <input
@@ -325,17 +352,90 @@ export default function AgendarPage({
                 />
               </div>
 
-              {erro && <p className="text-sm text-red-600">{erro}</p>}
+              {erro && !mostrarConfirmacao && (
+                <p className="text-sm text-red-600">{erro}</p>
+              )}
 
               <button
                 type="submit"
-                disabled={enviando}
-                className="w-full rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                className="w-full rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
               >
-                {enviando ? "Confirmando..." : "Confirmar agendamento"}
+                Revisar agendamento
               </button>
             </form>
           )}
+        </div>
+      )}
+
+      {mostrarConfirmacao && horarioEscolhido && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirmar-publico-titulo"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !enviando) {
+              setMostrarConfirmacao(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-md space-y-4 rounded-lg border border-zinc-200 bg-white p-6 shadow-2xl">
+            <h2 id="confirmar-publico-titulo" className="text-lg font-semibold">
+              Confirmar agendamento
+            </h2>
+            <div className="space-y-1 text-sm text-zinc-800">
+              <p className="font-semibold">Serviços:</p>
+              <ul className="ml-4 list-disc">
+                {servicosSelecionados.map((s) => (
+                  <li key={s.id}>
+                    {s.nome} · {s.duracaoMin} min · {formatarPreco(s.precoCentavos)}
+                  </li>
+                ))}
+              </ul>
+              <p className="pt-1">
+                <span className="font-semibold">Profissional:</span>{" "}
+                {nomeProfissionalEscolhido}
+              </p>
+              <p>
+                <span className="font-semibold">Dia:</span>{" "}
+                {new Date(horarioEscolhido).toLocaleString("pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}
+              </p>
+              <p>
+                <span className="font-semibold">Total:</span>{" "}
+                {formatarPreco(precoTotal)} · {duracaoTotal} min
+              </p>
+              <p className="pt-1">
+                <span className="font-semibold">Nome:</span> {nome}
+              </p>
+              <p>
+                <span className="font-semibold">Telefone:</span> {telefone}
+              </p>
+            </div>
+
+            {erro && <p className="text-sm text-red-600">{erro}</p>}
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={enviando}
+                onClick={() => setMostrarConfirmacao(false)}
+                className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                disabled={enviando}
+                onClick={() => void confirmarEnvio()}
+                className="min-h-11 rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {enviando ? "Confirmando..." : "Confirmar e agendar"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

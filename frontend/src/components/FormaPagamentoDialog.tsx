@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2, X } from "lucide-react";
-import type { Agendamento } from "@/lib/types";
 
 const OPCOES_PAGAMENTO = [
   "Pix",
@@ -24,13 +23,15 @@ export type PagamentoSelecionado = {
 };
 
 type FormaPagamentoDialogProps = {
-  agendamento: Agendamento;
+  titulo?: string;
+  descricao: string;
   onCancel: () => void;
   onConfirm: (pagamento: PagamentoSelecionado) => Promise<void>;
 };
 
 export default function FormaPagamentoDialog({
-  agendamento,
+  titulo = "Concluir atendimento",
+  descricao,
   onCancel,
   onConfirm,
 }: FormaPagamentoDialogProps) {
@@ -113,14 +114,13 @@ export default function FormaPagamentoDialog({
               id="forma-pagamento-titulo"
               className="text-xl font-semibold leading-7"
             >
-              Concluir atendimento
+              {titulo}
             </h2>
             <p
               id="forma-pagamento-descricao"
               className="mt-2 text-base leading-6 text-zinc-700"
             >
-              {agendamento.cliente?.nome ?? agendamento.clienteNome} ·{" "}
-              {agendamento.servico.nome}
+              {descricao}
             </p>
           </div>
           <button

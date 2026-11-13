@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateAgendamentoDto } from './dto/create-agendamento.dto.js';
 import { UpdateAgendamentoDto } from './dto/update-agendamento.dto.js';
@@ -14,18 +15,23 @@ export class AgendamentosService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(barbeariaId: string, profissionalId: string, dto: CreateAgendamentoDto) {
-    const [cliente, servico] = await Promise.all([
+    const [cliente, servicosEncontrados] = await Promise.all([
       dto.clienteId
         ? this.prisma.cliente.findUnique({ where: { id: dto.clienteId } })
         : Promise.resolve(null),
-      this.prisma.servico.findUnique({ where: { id: dto.servicoId } }),
+      this.prisma.servico.findMany({
+        where: { id: { in: dto.servicoIds }, barbeariaId },
+      }),
     ]);
     if (dto.clienteId && (!cliente || cliente.barbeariaId !== barbeariaId)) {
       throw new NotFoundException('Cliente não encontrado');
     }
-    if (!servico || servico.barbeariaId !== barbeariaId) {
-      throw new NotFoundException('Serviço não encontrado');
+    if (servicosEncontrados.length !== new Set(dto.servicoIds).size) {
+      throw new NotFoundException('Um ou mais serviços não encontrados');
     }
+    const servicos = dto.servicoIds.map(
+      (id) => servicosEncontrados.find((s) => s.id === id)!,
+    );
     const clienteNome = cliente?.nome ?? dto.clienteNome?.trim();
     if (!clienteNome) {
       throw new BadRequestException(
@@ -34,23 +40,35 @@ export class AgendamentosService {
     }
 
     const inicio = new Date(dto.inicio);
-    const fim = new Date(inicio.getTime() + servico.duracaoMin * 60000);
+    const duracaoTotal = servicos.reduce((soma, s) => soma + s.duracaoMin, 0);
+    const fimTotal = new Date(inicio.getTime() + duracaoTotal * 60000);
 
-    await this.verificarConflito(profissionalId, inicio, fim);
+    await this.verificarConflito(profissionalId, inicio, fimTotal);
 
-    return this.prisma.agendamento.create({
-      data: {
-        barbeariaId,
-        clienteId: cliente?.id ?? null,
-        clienteNome,
-        servicoId: dto.servicoId,
-        profissionalId,
-        inicio,
-        fim,
-        observacao: dto.observacao,
-      },
-      include: { cliente: true, servico: true },
-    });
+    const grupoId = servicos.length > 1 ? randomUUID() : null;
+    const criados = [];
+    let cursor = inicio;
+    for (const servico of servicos) {
+      const fimServico = new Date(cursor.getTime() + servico.duracaoMin * 60000);
+      const agendamento = await this.prisma.agendamento.create({
+        data: {
+          barbeariaId,
+          clienteId: cliente?.id ?? null,
+          clienteNome,
+          servicoId: servico.id,
+          profissionalId,
+          inicio: cursor,
+          fim: fimServico,
+          observacao: dto.observacao,
+          grupoId,
+        },
+        include: { cliente: true, servico: true },
+      });
+      criados.push(agendamento);
+      cursor = fimServico;
+    }
+
+    return criados;
   }
 
   findAll(barbeariaId: string) {

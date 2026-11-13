@@ -1,4 +1,6 @@
 import {
+  ArrayMinSize,
+  IsArray,
   IsDateString,
   IsOptional,
   IsString,
@@ -17,8 +19,10 @@ export class CreateAgendamentoDto {
   @MaxLength(100)
   clienteNome?: string;
 
-  @IsString()
-  servicoId!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  servicoIds!: string[];
 
   @IsDateString()
   inicio!: string;

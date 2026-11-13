@@ -19,6 +19,7 @@ type TokenPayload = {
   sub: string;
   barbeariaId: string;
   papel: string;
+  nome: string;
   exp: number;
 };
 

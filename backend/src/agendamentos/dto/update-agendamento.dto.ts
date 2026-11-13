@@ -1,7 +1,13 @@
-import { PartialType } from '@nestjs/swagger';
-import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { StatusAgendamento } from '@prisma/client';
-import { CreateAgendamentoDto } from './create-agendamento.dto.js';
 
 export const FORMAS_PAGAMENTO = [
   'Pix',
@@ -11,7 +17,29 @@ export const FORMAS_PAGAMENTO = [
   'Outro',
 ] as const;
 
-export class UpdateAgendamentoDto extends PartialType(CreateAgendamentoDto) {
+export class UpdateAgendamentoDto {
+  @IsOptional()
+  @IsString()
+  clienteId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  clienteNome?: string;
+
+  @IsOptional()
+  @IsString()
+  servicoId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  inicio?: string;
+
+  @IsOptional()
+  @IsString()
+  observacao?: string;
+
   @IsOptional()
   @IsEnum(StatusAgendamento)
   status?: StatusAgendamento;

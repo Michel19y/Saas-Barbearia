@@ -241,6 +241,9 @@ export default function AgendamentosPage() {
     useState<Agendamento | null>(null);
   const [agendamentoParaConcluir, setAgendamentoParaConcluir] =
     useState<Agendamento | null>(null);
+  const [grupoParaConcluir, setGrupoParaConcluir] = useState<
+    Agendamento[] | null
+  >(null);
   const [statusEmAtualizacao, setStatusEmAtualizacao] = useState<string | null>(
     null,
   );
@@ -251,9 +254,11 @@ export default function AgendamentosPage() {
   const focoAnterior = useRef<HTMLElement | null>(null);
   const dispensarToast = useCallback(() => setToast(null), []);
 
-  const carregar = useCallback(async () => {
-    setCarregando(true);
-    setErroCarga(null);
+  const carregar = useCallback(async (opcoes?: { silencioso?: boolean }) => {
+    if (!opcoes?.silencioso) {
+      setCarregando(true);
+      setErroCarga(null);
+    }
     try {
       const [agendaData, clientesData, servicosData] = await Promise.all([
         authFetch("/agendamentos"),
@@ -263,14 +268,17 @@ export default function AgendamentosPage() {
       setAgendamentos(agendaData as Agendamento[]);
       setClientes(clientesData as Cliente[]);
       setServicos(servicosData as Servico[]);
+      if (opcoes?.silencioso) setErroCarga(null);
     } catch (error) {
-      setErroCarga(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível carregar os agendamentos.",
-      );
+      if (!opcoes?.silencioso) {
+        setErroCarga(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os agendamentos.",
+        );
+      }
     } finally {
-      setCarregando(false);
+      if (!opcoes?.silencioso) setCarregando(false);
     }
   }, []);
 
@@ -284,6 +292,25 @@ export default function AgendamentosPage() {
     });
     return () => {
       ativo = false;
+    };
+  }, [carregar]);
+
+  useEffect(() => {
+    function aoFocar() {
+      if (document.visibilityState === "visible") {
+        void carregar({ silencioso: true });
+      }
+    }
+    const intervalo = window.setInterval(
+      () => void carregar({ silencioso: true }),
+      30000,
+    );
+    window.addEventListener("focus", aoFocar);
+    document.addEventListener("visibilitychange", aoFocar);
+    return () => {
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", aoFocar);
+      document.removeEventListener("visibilitychange", aoFocar);
     };
   }, [carregar]);
 
@@ -340,6 +367,20 @@ export default function AgendamentosPage() {
     }
     return Array.from(agrupados.entries());
   }, [agendamentosFiltrados]);
+
+  function agruparPorAtendimento(lista: Agendamento[]) {
+    const mapa = new Map<string, Agendamento[]>();
+    const ordem: string[] = [];
+    for (const item of lista) {
+      const chave = item.grupoId ?? item.id;
+      if (!mapa.has(chave)) {
+        mapa.set(chave, []);
+        ordem.push(chave);
+      }
+      mapa.get(chave)!.push(item);
+    }
+    return ordem.map((chave) => mapa.get(chave)!);
+  }
   const servicosAtivos = useMemo(
     () => servicos.filter((servico) => servico.ativo),
     [servicos],
@@ -392,10 +433,9 @@ export default function AgendamentosPage() {
   }
 
   async function salvarAgendamento(values: AgendamentoFormValues) {
-    const payload = {
+    const base = {
       clienteId: values.clienteId || undefined,
       clienteNome: values.clienteId ? undefined : values.clienteNome,
-      servicoId: values.servicoId,
       inicio: new Date(values.inicio).toISOString(),
       observacao: values.observacao || undefined,
     };
@@ -403,7 +443,7 @@ export default function AgendamentosPage() {
     if (drawer) {
       const atualizado = (await authFetch(`/agendamentos/${drawer.id}`, {
         method: "PATCH",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...base, servicoId: values.servicoIds[0] }),
       })) as Agendamento;
       setAgendamentos((atuais) =>
         atuais.map((item) => (item.id === atualizado.id ? atualizado : item)),
@@ -411,13 +451,17 @@ export default function AgendamentosPage() {
       destacar(atualizado.id);
       setToast(`Agendamento de ${nomeCliente(atualizado)} atualizado`);
     } else {
-      const criado = (await authFetch("/agendamentos", {
+      const criados = (await authFetch("/agendamentos", {
         method: "POST",
-        body: JSON.stringify(payload),
-      })) as Agendamento;
-      setAgendamentos((atuais) => [...atuais, criado]);
-      destacar(criado.id);
-      setToast(`Agendamento de ${nomeCliente(criado)} criado`);
+        body: JSON.stringify({ ...base, servicoIds: values.servicoIds }),
+      })) as Agendamento[];
+      setAgendamentos((atuais) => [...atuais, ...criados]);
+      destacar(criados[0].id);
+      setToast(
+        criados.length > 1
+          ? `Agendamento de ${nomeCliente(criados[0])} criado (${criados.length} serviços)`
+          : `Agendamento de ${nomeCliente(criados[0])} criado`,
+      );
     }
     fecharDrawer();
   }
@@ -426,6 +470,7 @@ export default function AgendamentosPage() {
     agendamento: Agendamento,
     status: StatusAgendamento,
     pagamento?: PagamentoSelecionado,
+    silencioso = false,
   ) {
     setErroAcao(null);
     setStatusEmAtualizacao(agendamento.id);
@@ -440,9 +485,12 @@ export default function AgendamentosPage() {
       setAgendamentos((atuais) =>
         atuais.map((item) => (item.id === atualizado.id ? atualizado : item)),
       );
-      setToast(
-        `Status do agendamento de ${nomeCliente(atualizado)} atualizado`,
-      );
+      if (!silencioso) {
+        setToast(
+          `Status do agendamento de ${nomeCliente(atualizado)} atualizado`,
+        );
+      }
+      return atualizado;
     } catch (error) {
       if (!pagamento) {
         setErroAcao(
@@ -476,6 +524,7 @@ export default function AgendamentosPage() {
 
   function fecharPagamento() {
     setAgendamentoParaConcluir(null);
+    setGrupoParaConcluir(null);
     devolverFoco();
   }
 
@@ -487,6 +536,28 @@ export default function AgendamentosPage() {
       pagamento,
     );
     setAgendamentoParaConcluir(null);
+    devolverFoco();
+  }
+
+  function abrirConclusaoGrupo(subgrupo: Agendamento[], trigger: HTMLElement) {
+    registrarFoco(trigger);
+    setGrupoParaConcluir(subgrupo);
+  }
+
+  async function concluirGrupoComPagamento(pagamento: PagamentoSelecionado) {
+    if (!grupoParaConcluir) return;
+    const pendentes = grupoParaConcluir.filter(
+      (item) => item.status !== "CONCLUIDO" && item.status !== "CANCELADO",
+    );
+    for (const item of pendentes) {
+      await atualizarStatus(item, "CONCLUIDO", pagamento, true);
+    }
+    setToast(
+      pendentes.length === 1
+        ? `Serviço de ${nomeCliente(pendentes[0])} concluído`
+        : `${pendentes.length} serviços de ${nomeCliente(grupoParaConcluir[0])} concluídos`,
+    );
+    setGrupoParaConcluir(null);
     devolverFoco();
   }
 
@@ -729,72 +800,166 @@ export default function AgendamentosPage() {
                     {formatarData(grupo[0].inicio, "longa")}
                   </h2>
                   <ul className="space-y-3">
-                    {grupo.map((agendamento) => (
-                      <li
-                        key={agendamento.id}
-                        className={`relative rounded-lg border p-4 transition-colors motion-reduce:transition-none ${agendamentoDestacado === agendamento.id ? "border-green-700 bg-green-50" : "border-zinc-200 bg-white"}`}
-                      >
-                        <button
-                          type="button"
-                          onClick={(event) =>
-                            abrirDrawer(agendamento, event.currentTarget)
-                          }
-                          aria-label={`Editar agendamento de ${nomeCliente(agendamento)}`}
-                          className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
-                        />
-                        <div className="relative z-10 pointer-events-none flex items-start gap-3">
-                          <ClienteAvatar nome={nomeCliente(agendamento)} />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-base font-semibold leading-6 text-zinc-950">
-                              {nomeCliente(agendamento)}
-                            </p>
-                            {!agendamento.clienteId && (
-                              <p className="text-sm leading-6 text-zinc-700">
-                                Anotação rápida · sem cadastro
+                    {agruparPorAtendimento(grupo).map((subgrupo) => {
+                      const primeiro = subgrupo[0];
+                      const ultimo = subgrupo[subgrupo.length - 1];
+                      const totalGrupo = subgrupo.reduce(
+                        (soma, item) => soma + item.servico.precoCentavos,
+                        0,
+                      );
+                      const destacado = subgrupo.some(
+                        (item) => agendamentoDestacado === item.id,
+                      );
+                      return (
+                        <li
+                          key={primeiro.grupoId ?? primeiro.id}
+                          className={`relative rounded-lg border p-4 transition-colors motion-reduce:transition-none ${destacado ? "border-green-700 bg-green-50" : "border-zinc-200 bg-white"}`}
+                        >
+                          {subgrupo.length === 1 && (
+                            <button
+                              type="button"
+                              onClick={(event) =>
+                                abrirDrawer(primeiro, event.currentTarget)
+                              }
+                              aria-label={`Editar agendamento de ${nomeCliente(primeiro)}`}
+                              className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                            />
+                          )}
+                          <div className="relative z-10 pointer-events-none flex items-start gap-3">
+                            <ClienteAvatar nome={nomeCliente(primeiro)} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-base font-semibold leading-6 text-zinc-950">
+                                {nomeCliente(primeiro)}
                               </p>
-                            )}
-                            <p className="text-base leading-6 text-zinc-800">
-                              {agendamento.servico.nome} ·{" "}
-                              {formatarPreco(
-                                agendamento.servico.precoCentavos,
+                              {!primeiro.clienteId && (
+                                <p className="text-sm leading-6 text-zinc-700">
+                                  Anotação rápida · sem cadastro
+                                </p>
                               )}
-                            </p>
-                            <p className="mt-1 flex items-center gap-2 text-base leading-6 text-zinc-700 tabular-nums">
-                              <CalendarClock
-                                aria-hidden="true"
-                                size={16}
-                                className="shrink-0"
-                              />
-                              {formatarHora(agendamento.inicio)}
-                            </p>
-                            {agendamento.observacao && (
-                              <p className="mt-1 break-words text-sm leading-6 text-zinc-700">
-                                {agendamento.observacao}
+                              {subgrupo.length === 1 ? (
+                                <p className="text-base leading-6 text-zinc-800">
+                                  {primeiro.servico.nome} ·{" "}
+                                  {formatarPreco(
+                                    primeiro.servico.precoCentavos,
+                                  )}
+                                </p>
+                              ) : (
+                                <p className="text-base leading-6 text-zinc-800">
+                                  {subgrupo.length} serviços · total{" "}
+                                  {formatarPreco(totalGrupo)}
+                                </p>
+                              )}
+                              <p className="mt-1 flex items-center gap-2 text-base leading-6 text-zinc-700 tabular-nums">
+                                <CalendarClock
+                                  aria-hidden="true"
+                                  size={16}
+                                  className="shrink-0"
+                                />
+                                {formatarHora(primeiro.inicio)} até{" "}
+                                {formatarHora(ultimo.fim)}
                               </p>
-                            )}
+                              {primeiro.observacao && (
+                                <p className="mt-1 break-words text-sm leading-6 text-zinc-700">
+                                  {primeiro.observacao}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="relative z-10 mt-3 flex flex-wrap items-center justify-between gap-2">
-                          <StatusSelect
-                            agendamento={agendamento}
-                            desabilitado={
-                              statusEmAtualizacao === agendamento.id
-                            }
-                            onChange={(status, trigger) =>
-                              selecionarStatus(agendamento, status, trigger)
-                            }
-                          />
-                          <AcoesAgendamento
-                            mobile
-                            agendamento={agendamento}
-                            onEditar={(alvo, trigger) =>
-                              abrirDrawer(alvo, trigger)
-                            }
-                            onCancelar={abrirConfirmacao}
-                          />
-                        </div>
-                      </li>
-                    ))}
+
+                          {subgrupo.length === 1 ? (
+                            <div className="relative z-10 mt-3 flex flex-wrap items-center justify-between gap-2">
+                              <StatusSelect
+                                agendamento={primeiro}
+                                desabilitado={
+                                  statusEmAtualizacao === primeiro.id
+                                }
+                                onChange={(status, trigger) =>
+                                  selecionarStatus(primeiro, status, trigger)
+                                }
+                              />
+                              <AcoesAgendamento
+                                mobile
+                                agendamento={primeiro}
+                                onEditar={(alvo, trigger) =>
+                                  abrirDrawer(alvo, trigger)
+                                }
+                                onCancelar={abrirConfirmacao}
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              {subgrupo.some(
+                                (item) =>
+                                  item.status !== "CONCLUIDO" &&
+                                  item.status !== "CANCELADO",
+                              ) && (
+                                <div className="relative z-10 mt-3 flex justify-end pointer-events-auto">
+                                  <button
+                                    type="button"
+                                    disabled={subgrupo.some(
+                                      (item) =>
+                                        statusEmAtualizacao === item.id,
+                                    )}
+                                    onClick={(event) =>
+                                      abrirConclusaoGrupo(
+                                        subgrupo,
+                                        event.currentTarget,
+                                      )
+                                    }
+                                    className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                                  >
+                                    Concluir todos
+                                  </button>
+                                </div>
+                              )}
+                              <ul className="relative z-10 mt-3 space-y-2 border-t border-zinc-200 pt-3">
+                                {subgrupo.map((agendamento) => (
+                                  <li
+                                    key={agendamento.id}
+                                    className="pointer-events-auto flex flex-wrap items-center justify-between gap-2"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-semibold leading-6">
+                                        {agendamento.servico.nome}
+                                      </p>
+                                      <p className="text-sm leading-6 text-zinc-700">
+                                        {formatarPreco(
+                                          agendamento.servico.precoCentavos,
+                                        )}
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <StatusSelect
+                                        agendamento={agendamento}
+                                        desabilitado={
+                                          statusEmAtualizacao ===
+                                          agendamento.id
+                                        }
+                                        onChange={(status, trigger) =>
+                                          selecionarStatus(
+                                            agendamento,
+                                            status,
+                                            trigger,
+                                          )
+                                        }
+                                      />
+                                      <AcoesAgendamento
+                                        mobile
+                                        agendamento={agendamento}
+                                        onEditar={(alvo, trigger) =>
+                                          abrirDrawer(alvo, trigger)
+                                        }
+                                        onCancelar={abrirConfirmacao}
+                                      />
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               ))}
@@ -853,73 +1018,119 @@ export default function AgendamentosPage() {
                         {formatarData(grupo[0].inicio, "longa")}
                       </th>
                     </tr>
-                    {grupo.map((agendamento) => (
-                      <tr
-                        key={agendamento.id}
-                        className={`bg-white ${agendamentoDestacado === agendamento.id ? "!bg-green-50" : ""}`}
-                      >
-                        <td className="border-b border-zinc-200 px-4 py-3">
-                          <time
-                            dateTime={agendamento.inicio}
-                            className="block text-base font-semibold leading-6 tabular-nums"
-                          >
-                            {formatarHora(agendamento.inicio)}
-                          </time>
-                          <span className="text-sm leading-6 text-zinc-700 tabular-nums">
-                            até {formatarHora(agendamento.fim)}
-                          </span>
-                        </td>
-                        <td className="border-b border-zinc-200 px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <ClienteAvatar nome={nomeCliente(agendamento)} />
-                            <div>
-                              <span className="text-base font-semibold leading-6">
-                                {nomeCliente(agendamento)}
-                              </span>
-                              {!agendamento.clienteId && (
-                                <span className="block text-sm leading-6 text-zinc-700">
-                                  Anotação rápida · sem cadastro
+                    {agruparPorAtendimento(grupo).flatMap((subgrupo) => {
+                      const primeiro = subgrupo[0];
+                      const ultimo = subgrupo[subgrupo.length - 1];
+                      const totalGrupo = subgrupo.reduce(
+                        (soma, item) => soma + item.servico.precoCentavos,
+                        0,
+                      );
+                      return subgrupo.map((agendamento, indice) => (
+                        <tr
+                          key={agendamento.id}
+                          className={`bg-white ${agendamentoDestacado === agendamento.id ? "!bg-green-50" : ""}`}
+                        >
+                          <td className="border-b border-zinc-200 px-4 py-3">
+                            {indice === 0 && (
+                              <>
+                                <time
+                                  dateTime={primeiro.inicio}
+                                  className="block text-base font-semibold leading-6 tabular-nums"
+                                >
+                                  {formatarHora(primeiro.inicio)}
+                                </time>
+                                <span className="text-sm leading-6 text-zinc-700 tabular-nums">
+                                  até {formatarHora(ultimo.fim)}
                                 </span>
-                              )}
+                              </>
+                            )}
+                          </td>
+                          <td className="border-b border-zinc-200 px-4 py-3">
+                            {indice === 0 && (
+                              <div className="flex items-center gap-3">
+                                <ClienteAvatar nome={nomeCliente(primeiro)} />
+                                <div>
+                                  <span className="text-base font-semibold leading-6">
+                                    {nomeCliente(primeiro)}
+                                  </span>
+                                  {!primeiro.clienteId && (
+                                    <span className="block text-sm leading-6 text-zinc-700">
+                                      Anotação rápida · sem cadastro
+                                    </span>
+                                  )}
+                                  {subgrupo.length > 1 && (
+                                    <span className="block text-sm leading-6 text-zinc-700">
+                                      {subgrupo.length} serviços · total{" "}
+                                      {formatarPreco(totalGrupo)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                          <td className="border-b border-zinc-200 px-4 py-3 text-base leading-6">
+                            {agendamento.servico.nome}
+                            {agendamento.observacao && (
+                              <span
+                                className="block max-w-56 truncate text-sm leading-6 text-zinc-700"
+                                title={agendamento.observacao}
+                              >
+                                {agendamento.observacao}
+                              </span>
+                            )}
+                          </td>
+                          <td className="border-b border-zinc-200 px-4 py-3 text-base leading-6 tabular-nums">
+                            {formatarPreco(agendamento.servico.precoCentavos)}
+                          </td>
+                          <td className="border-b border-zinc-200 px-4 py-2">
+                            <StatusSelect
+                              agendamento={agendamento}
+                              desabilitado={
+                                statusEmAtualizacao === agendamento.id
+                              }
+                              onChange={(status, trigger) =>
+                                selecionarStatus(agendamento, status, trigger)
+                              }
+                            />
+                          </td>
+                          <td className="border-b border-zinc-200 px-4 py-2">
+                            <div className="flex items-center justify-end gap-2">
+                              {indice === 0 &&
+                                subgrupo.length > 1 &&
+                                subgrupo.some(
+                                  (item) =>
+                                    item.status !== "CONCLUIDO" &&
+                                    item.status !== "CANCELADO",
+                                ) && (
+                                  <button
+                                    type="button"
+                                    disabled={subgrupo.some(
+                                      (item) =>
+                                        statusEmAtualizacao === item.id,
+                                    )}
+                                    onClick={(event) =>
+                                      abrirConclusaoGrupo(
+                                        subgrupo,
+                                        event.currentTarget,
+                                      )
+                                    }
+                                    className="min-h-11 shrink-0 whitespace-nowrap rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                                  >
+                                    Concluir todos
+                                  </button>
+                                )}
+                              <AcoesAgendamento
+                                agendamento={agendamento}
+                                onEditar={(alvo, trigger) =>
+                                  abrirDrawer(alvo, trigger)
+                                }
+                                onCancelar={abrirConfirmacao}
+                              />
                             </div>
-                          </div>
-                        </td>
-                        <td className="border-b border-zinc-200 px-4 py-3 text-base leading-6">
-                          {agendamento.servico.nome}
-                          {agendamento.observacao && (
-                            <span
-                              className="block max-w-56 truncate text-sm leading-6 text-zinc-700"
-                              title={agendamento.observacao}
-                            >
-                              {agendamento.observacao}
-                            </span>
-                          )}
-                        </td>
-                        <td className="border-b border-zinc-200 px-4 py-3 text-base leading-6 tabular-nums">
-                          {formatarPreco(agendamento.servico.precoCentavos)}
-                        </td>
-                        <td className="border-b border-zinc-200 px-4 py-2">
-                          <StatusSelect
-                            agendamento={agendamento}
-                            desabilitado={
-                              statusEmAtualizacao === agendamento.id
-                            }
-                            onChange={(status, trigger) =>
-                              selecionarStatus(agendamento, status, trigger)
-                            }
-                          />
-                        </td>
-                        <td className="border-b border-zinc-200 px-4 py-2">
-                          <AcoesAgendamento
-                            agendamento={agendamento}
-                            onEditar={(alvo, trigger) =>
-                              abrirDrawer(alvo, trigger)
-                            }
-                            onCancelar={abrirConfirmacao}
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      ));
+                    })}
                   </tbody>
                 ))}
                 <tfoot>
@@ -984,9 +1195,18 @@ export default function AgendamentosPage() {
 
       {agendamentoParaConcluir && (
         <FormaPagamentoDialog
-          agendamento={agendamentoParaConcluir}
+          descricao={`${nomeCliente(agendamentoParaConcluir)} · ${agendamentoParaConcluir.servico.nome}`}
           onCancel={fecharPagamento}
           onConfirm={concluirComPagamento}
+        />
+      )}
+
+      {grupoParaConcluir && (
+        <FormaPagamentoDialog
+          titulo="Concluir todos os serviços"
+          descricao={`${nomeCliente(grupoParaConcluir[0])} · ${grupoParaConcluir.length} serviços`}
+          onCancel={fecharPagamento}
+          onConfirm={concluirGrupoComPagamento}
         />
       )}
 

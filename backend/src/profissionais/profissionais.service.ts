@@ -1,7 +1,13 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateProfissionalDto } from './dto/create-profissional.dto.js';
+import { UpdateProfissionalDto } from './dto/update-profissional.dto.js';
 
 const CAMPOS = {
   id: true,
@@ -17,7 +23,7 @@ export class ProfissionaisService {
 
   findAll(barbeariaId: string) {
     return this.prisma.usuario.findMany({
-      where: { barbeariaId, ativo: true },
+      where: { barbeariaId },
       select: CAMPOS,
       orderBy: { criadoEm: 'asc' },
     });
@@ -37,8 +43,46 @@ export class ProfissionaisService {
         nome: dto.nome,
         email: dto.email,
         senhaHash: await bcrypt.hash(dto.senha, 10),
-        papel: 'PROFISSIONAL',
+        papel: dto.papel ?? 'PROFISSIONAL',
       },
+      select: CAMPOS,
+    });
+  }
+
+  async update(
+    barbeariaId: string,
+    solicitanteId: string,
+    id: string,
+    dto: UpdateProfissionalDto,
+  ) {
+    const alvo = await this.prisma.usuario.findUnique({ where: { id } });
+    if (!alvo || alvo.barbeariaId !== barbeariaId) {
+      throw new NotFoundException('Pessoa não encontrada na equipe');
+    }
+
+    if (id === solicitanteId) {
+      if (dto.ativo === false) {
+        throw new BadRequestException('Você não pode desativar a própria conta');
+      }
+      if (dto.papel && dto.papel !== 'DONO') {
+        throw new BadRequestException('Você não pode rebaixar a própria conta');
+      }
+    }
+
+    if (alvo.papel === 'DONO' && dto.papel && dto.papel !== 'DONO') {
+      const outrosDonos = await this.prisma.usuario.count({
+        where: { barbeariaId, papel: 'DONO', ativo: true, id: { not: id } },
+      });
+      if (outrosDonos === 0) {
+        throw new BadRequestException(
+          'A barbearia precisa ter pelo menos um dono ativo',
+        );
+      }
+    }
+
+    return this.prisma.usuario.update({
+      where: { id },
+      data: dto,
       select: CAMPOS,
     });
   }

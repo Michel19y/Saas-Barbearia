@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CriarAgendamentoPublicoDto } from './dto/criar-agendamento-publico.dto.js';
 
@@ -161,6 +162,7 @@ export class PublicoService {
       });
     }
 
+    const grupoId = servicos.length > 1 ? randomUUID() : null;
     const criados = [];
     let cursor = inicio;
     for (const servico of servicos) {
@@ -175,6 +177,7 @@ export class PublicoService {
           inicio: cursor,
           fim: fimServico,
           status: 'PENDENTE',
+          grupoId,
         },
         include: { servico: true, profissional: { select: { nome: true } } },
       });
