@@ -13,6 +13,7 @@ RUN npm run build
 
 FROM base AS runner
 ENV NODE_ENV=production
+ENV HOSTNAME="0.0.0.0"
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 
