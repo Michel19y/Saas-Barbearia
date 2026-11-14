@@ -1,6 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
+const MS_POR_MINUTO = 60_000;
+const LIMITE_LISTAGEM = 200;
+/** Separa os itens importados dos agendamentos reais na lista (os ids nunca colidem). */
+export const PREFIXO_ID_IMPORTADO = 'importado:';
+
 export type ResumoFinanceiro = {
   periodo: { de: string | null; ate: string | null };
   totalCentavos: number;
@@ -68,8 +73,41 @@ export class AtendimentosService {
       where: { barbeariaId },
       include: { cliente: true, servico: true },
       orderBy: { data: 'desc' },
-      take: 200,
+      take: LIMITE_LISTAGEM,
     });
+  }
+
+  /**
+   * Histórico importado (atendimentos que não vieram de um agendamento do sistema),
+   * no mesmo formato da lista de agendamentos para aparecer na agenda.
+   * O preço mostrado é o valor realmente pago naquele atendimento, não o preço atual do serviço.
+   */
+  async historicoImportado(barbeariaId: string) {
+    const atendimentos = await this.prisma.atendimento.findMany({
+      where: { barbeariaId, agendamentoId: null },
+      include: { cliente: true, servico: true },
+      orderBy: { data: 'asc' },
+    });
+    return atendimentos.map((a) => ({
+      id: `${PREFIXO_ID_IMPORTADO}${a.id}`,
+      importado: true,
+      clienteId: a.clienteId,
+      clienteNome: a.clienteNome,
+      cliente: a.cliente,
+      servicoId: a.servicoId,
+      servico: { ...a.servico, precoCentavos: a.valorCentavos },
+      inicio: a.data,
+      fim: new Date(a.data.getTime() + a.servico.duracaoMin * MS_POR_MINUTO),
+      status: 'CONCLUIDO' as const,
+      observacao: [
+        'Importado da planilha',
+        a.profissionalNome && `Profissional: ${a.profissionalNome}`,
+        a.formaPagamento,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      grupoId: null,
+    }));
   }
 
   // O recorte do período vem pronto do cliente (já no fuso de quem está olhando),

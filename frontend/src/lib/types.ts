@@ -32,6 +32,8 @@ export type Agendamento = {
   cliente: Cliente | null;
   servico: Servico;
   grupoId: string | null;
+  /** Veio da importação de planilha: histórico, só leitura (sem editar, cancelar ou mudar status). */
+  importado?: boolean;
 };
 
 export type LinhaResumo = {

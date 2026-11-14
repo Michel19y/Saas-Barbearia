@@ -16,6 +16,12 @@ export class AtendimentosController {
     return this.atendimentosService.findAll(user.barbeariaId);
   }
 
+  /** Atendimentos importados de planilha, no formato da lista de agendamentos (só leitura). */
+  @Get('historico')
+  historico(@CurrentUser() user: JwtPayload) {
+    return this.atendimentosService.historicoImportado(user.barbeariaId);
+  }
+
   @Get('resumo')
   @ApiQuery({ name: 'de', required: false, description: 'Início do período (ISO)' })
   @ApiQuery({ name: 'ate', required: false, description: 'Fim do período (ISO)' })

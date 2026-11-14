@@ -107,6 +107,13 @@ function StatusSelect({
   desabilitado: boolean;
   onChange: (status: StatusAgendamento, trigger: HTMLElement) => void;
 }) {
+  if (agendamento.importado) {
+    return (
+      <span className="inline-flex min-h-11 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium leading-6 text-zinc-700">
+        Concluído · importado
+      </span>
+    );
+  }
   return (
     <select
       value={agendamento.status}
@@ -142,6 +149,9 @@ function AcoesAgendamento({
 }) {
   const nome = nomeCliente(agendamento);
   const digitos = somenteDigitos(agendamento.cliente?.telefone ?? "");
+
+  // Histórico importado não se edita nem se cancela pela agenda
+  if (agendamento.importado) return null;
 
   return (
     <div
@@ -260,12 +270,18 @@ export default function AgendamentosPage() {
       setErroCarga(null);
     }
     try {
-      const [agendaData, clientesData, servicosData] = await Promise.all([
-        authFetch("/agendamentos"),
-        authFetch("/clientes"),
-        authFetch("/servicos"),
+      const [agendaData, historicoData, clientesData, servicosData] =
+        await Promise.all([
+          authFetch("/agendamentos"),
+          // Se o histórico falhar, a agenda de verdade continua aparecendo
+          authFetch("/atendimentos/historico").catch(() => []),
+          authFetch("/clientes"),
+          authFetch("/servicos"),
+        ]);
+      setAgendamentos([
+        ...(agendaData as Agendamento[]),
+        ...(historicoData as Agendamento[]),
       ]);
-      setAgendamentos(agendaData as Agendamento[]);
       setClientes(clientesData as Cliente[]);
       setServicos(servicosData as Servico[]);
       if (opcoes?.silencioso) setErroCarga(null);
@@ -815,7 +831,7 @@ export default function AgendamentosPage() {
                           key={primeiro.grupoId ?? primeiro.id}
                           className={`relative rounded-lg border p-4 transition-colors motion-reduce:transition-none ${destacado ? "border-green-700 bg-green-50" : "border-zinc-200 bg-white"}`}
                         >
-                          {subgrupo.length === 1 && (
+                          {subgrupo.length === 1 && !primeiro.importado && (
                             <button
                               type="button"
                               onClick={(event) =>
