@@ -10,6 +10,7 @@ RUN npm ci
 
 FROM deps AS build
 COPY . .
+ENV DATABASE_URL="postgresql://user:password@localhost:5432/db"
 RUN npx prisma generate
 RUN npm run build
 
