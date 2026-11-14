@@ -1,4 +1,5 @@
 import { IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { EmailNormalizado } from '../../common/email.js';
 
 const PAPEIS_CRIAVEIS = ['PROFISSIONAL', 'RECEPCAO'] as const;
 
@@ -7,6 +8,7 @@ export class CreateProfissionalDto {
   @MinLength(2)
   nome!: string;
 
+  @EmailNormalizado()
   @IsEmail()
   email!: string;
 

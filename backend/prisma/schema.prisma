@@ -55,7 +55,8 @@ model Usuario {
   barbearia   Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
 
   nome      String
-  email     String
+  // Único no sistema inteiro (sempre minúsculo): o login acha o usuário só pelo e-mail
+  email     String       @unique
   senhaHash String
   papel     PapelUsuario @default(PROFISSIONAL)
   ativo     Boolean      @default(true)
@@ -65,7 +66,7 @@ model Usuario {
 
   agendamentos Agendamento[] @relation("ProfissionalAgendamentos")
 
-  @@unique([barbeariaId, email])
+  @@index([barbeariaId])
   @@map("usuarios")
 }
 

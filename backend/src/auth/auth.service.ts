@@ -1,8 +1,19 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { slugify } from '../common/slugify.js';
+import {
+  MENSAGEM_EMAIL_EM_USO,
+  normalizarEmail,
+  tratarEmailDuplicado,
+} from '../common/email.js';
+import { BCRYPT_CUSTO } from '../common/senha.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { UpdateMeDto } from './dto/update-me.dto.js';
@@ -15,40 +26,54 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const slugBase = slugify(dto.nomeBarbearia);
-    let slug = slugBase;
-    let tentativa = 1;
-    while (await this.prisma.barbearia.findUnique({ where: { slug } })) {
-      slug = `${slugBase}-${++tentativa}`;
-    }
+    const email = normalizarEmail(dto.email);
+    const emailEmUso = await this.prisma.usuario.findUnique({ where: { email } });
+    if (emailEmUso) throw new ConflictException(MENSAGEM_EMAIL_EM_USO);
 
-    const senhaHash = await bcrypt.hash(dto.senha, 10);
+    const slug = await this.proximoSlugLivre(slugify(dto.nomeBarbearia));
+    const senhaHash = await bcrypt.hash(dto.senha, BCRYPT_CUSTO);
 
-    const barbearia = await this.prisma.barbearia.create({
-      data: {
-        nome: dto.nomeBarbearia,
-        slug,
-        usuarios: {
-          create: {
-            nome: dto.nomeDono,
-            email: dto.email,
-            senhaHash,
-            papel: 'DONO',
+    try {
+      const barbearia = await this.prisma.barbearia.create({
+        data: {
+          nome: dto.nomeBarbearia,
+          slug,
+          usuarios: {
+            create: {
+              nome: dto.nomeDono,
+              email,
+              senhaHash,
+              papel: 'DONO',
+            },
           },
         },
-      },
-      include: { usuarios: true },
-    });
+        include: { usuarios: true },
+      });
+      const dono = barbearia.usuarios[0];
+      return this.emitirToken(dono.id, barbearia.id, dono.papel, dono.nome);
+    } catch (erro) {
+      return tratarEmailDuplicado(erro);
+    }
+  }
 
-    const dono = barbearia.usuarios[0];
-    return this.emitirToken(dono.id, barbearia.id, dono.papel, dono.nome);
+  /** `slugBase` se estiver livre; senão `slugBase-N` com o menor N >= 2 ainda não usado. */
+  private async proximoSlugLivre(slugBase: string): Promise<string> {
+    const existentes = await this.prisma.barbearia.findMany({
+      where: { slug: { startsWith: slugBase } },
+      select: { slug: true },
+    });
+    const usados = new Set(existentes.map((b) => b.slug));
+    const candidatos = Array.from({ length: usados.size + 1 }, (_, i) =>
+      i === 0 ? slugBase : `${slugBase}-${i + 1}`,
+    );
+    return candidatos.find((s) => !usados.has(s)) ?? slugBase;
   }
 
   async login(dto: LoginDto) {
-    const usuario = await this.prisma.usuario.findFirst({
-      where: { email: dto.email, ativo: true },
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { email: normalizarEmail(dto.email) },
     });
-    if (!usuario) throw new UnauthorizedException('Credenciais inválidas');
+    if (!usuario || !usuario.ativo) throw new UnauthorizedException('Credenciais inválidas');
 
     const senhaOk = await bcrypt.compare(dto.senha, usuario.senhaHash);
     if (!senhaOk) throw new UnauthorizedException('Credenciais inválidas');
@@ -81,7 +106,7 @@ export class AuthService {
       }
       const senhaOk = await bcrypt.compare(dto.senhaAtual, usuario.senhaHash);
       if (!senhaOk) throw new BadRequestException('Senha atual incorreta');
-      data.senhaHash = await bcrypt.hash(dto.novaSenha, 10);
+      data.senhaHash = await bcrypt.hash(dto.novaSenha, BCRYPT_CUSTO);
     }
 
     const atualizado = await this.prisma.usuario.update({

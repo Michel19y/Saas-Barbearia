@@ -1,4 +1,5 @@
 import { IsEmail, IsString, MinLength } from 'class-validator';
+import { EmailNormalizado } from '../../common/email.js';
 
 export class RegisterDto {
   @IsString()
@@ -9,6 +10,7 @@ export class RegisterDto {
   @MinLength(2)
   nomeDono!: string;
 
+  @EmailNormalizado()
   @IsEmail()
   email!: string;
 

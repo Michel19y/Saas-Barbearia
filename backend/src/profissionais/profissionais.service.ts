@@ -6,6 +6,12 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
+import {
+  MENSAGEM_EMAIL_EM_USO,
+  normalizarEmail,
+  tratarEmailDuplicado,
+} from '../common/email.js';
+import { BCRYPT_CUSTO } from '../common/senha.js';
 import { CreateProfissionalDto } from './dto/create-profissional.dto.js';
 import { UpdateProfissionalDto } from './dto/update-profissional.dto.js';
 
@@ -30,23 +36,28 @@ export class ProfissionaisService {
   }
 
   async create(barbeariaId: string, dto: CreateProfissionalDto) {
-    const existente = await this.prisma.usuario.findFirst({
-      where: { barbeariaId, email: dto.email },
-    });
+    const email = normalizarEmail(dto.email);
+    const existente = await this.prisma.usuario.findUnique({ where: { email } });
     if (existente) {
-      throw new ConflictException('Já existe alguém com esse e-mail na equipe');
+      // Não revela se o e-mail é desta ou de outra barbearia
+      throw new ConflictException(MENSAGEM_EMAIL_EM_USO);
     }
 
-    return this.prisma.usuario.create({
-      data: {
-        barbeariaId,
-        nome: dto.nome,
-        email: dto.email,
-        senhaHash: await bcrypt.hash(dto.senha, 10),
-        papel: dto.papel ?? 'PROFISSIONAL',
-      },
-      select: CAMPOS,
-    });
+    const senhaHash = await bcrypt.hash(dto.senha, BCRYPT_CUSTO);
+    try {
+      return await this.prisma.usuario.create({
+        data: {
+          barbeariaId,
+          nome: dto.nome,
+          email,
+          senhaHash,
+          papel: dto.papel ?? 'PROFISSIONAL',
+        },
+        select: CAMPOS,
+      });
+    } catch (erro) {
+      return tratarEmailDuplicado(erro);
+    }
   }
 
   async update(
