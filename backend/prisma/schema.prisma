@@ -45,8 +45,21 @@ model Barbearia {
   clientes     Cliente[]
   agendamentos Agendamento[]
   atendimentos Atendimento[]
+  slugsAntigos SlugAntigo[]
 
   @@map("barbearias")
+}
+
+// Links de agendamento que a barbearia já usou. Continuam funcionando (redirecionam
+// para o atual) e ficam reservados: nenhuma outra barbearia pode pegar.
+model SlugAntigo {
+  slug        String    @id
+  barbeariaId String
+  barbearia   Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+  criadoEm    DateTime  @default(now())
+
+  @@index([barbeariaId])
+  @@map("barbearia_slugs_antigos")
 }
 
 model Usuario {

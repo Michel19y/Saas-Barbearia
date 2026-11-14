@@ -7,8 +7,13 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { slugify } from '../common/slugify.js';
 import {
+  proximoSlugLivre,
+  slugDoNome,
+  tratarSlugDuplicado,
+} from '../common/slug-barbearia.js';
+import {
+  ehEmailDuplicado,
   MENSAGEM_EMAIL_EM_USO,
   normalizarEmail,
   tratarEmailDuplicado,
@@ -30,7 +35,7 @@ export class AuthService {
     const emailEmUso = await this.prisma.usuario.findUnique({ where: { email } });
     if (emailEmUso) throw new ConflictException(MENSAGEM_EMAIL_EM_USO);
 
-    const slug = await this.proximoSlugLivre(slugify(dto.nomeBarbearia));
+    const slug = await proximoSlugLivre(this.prisma, slugDoNome(dto.nomeBarbearia));
     const senhaHash = await bcrypt.hash(dto.senha, BCRYPT_CUSTO);
 
     try {
@@ -52,21 +57,9 @@ export class AuthService {
       const dono = barbearia.usuarios[0];
       return this.emitirToken(dono.id, barbearia.id, dono.papel, dono.nome);
     } catch (erro) {
-      return tratarEmailDuplicado(erro);
+      if (ehEmailDuplicado(erro)) return tratarEmailDuplicado(erro);
+      return tratarSlugDuplicado(erro);
     }
-  }
-
-  /** `slugBase` se estiver livre; senão `slugBase-N` com o menor N >= 2 ainda não usado. */
-  private async proximoSlugLivre(slugBase: string): Promise<string> {
-    const existentes = await this.prisma.barbearia.findMany({
-      where: { slug: { startsWith: slugBase } },
-      select: { slug: true },
-    });
-    const usados = new Set(existentes.map((b) => b.slug));
-    const candidatos = Array.from({ length: usados.size + 1 }, (_, i) =>
-      i === 0 ? slugBase : `${slugBase}-${i + 1}`,
-    );
-    return candidatos.find((s) => !usados.has(s)) ?? slugBase;
   }
 
   async login(dto: LoginDto) {

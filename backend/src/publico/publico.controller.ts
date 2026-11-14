@@ -6,6 +6,11 @@ import { CriarAgendamentoPublicoDto } from './dto/criar-agendamento-publico.dto.
 export class PublicoController {
   constructor(private readonly publicoService: PublicoService) {}
 
+  @Get()
+  dados(@Param('slug') slug: string) {
+    return this.publicoService.dadosPublicos(slug);
+  }
+
   @Get('servicos')
   listarServicos(@Param('slug') slug: string) {
     return this.publicoService.listarServicos(slug);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import Toast from "@/components/Toast";
 import { authFetch, decodeToken, getToken } from "@/lib/auth";
+import { slugify } from "@/lib/slug";
 import type { Barbearia } from "@/lib/types";
 
 export default function ConfiguracoesPage() {
@@ -13,6 +14,8 @@ export default function ConfiguracoesPage() {
   const [erroCarga, setErroCarga] = useState<string | null>(null);
 
   const [nome, setNome] = useState("");
+  const [slug, setSlug] = useState("");
+  const sugestao = slugify(nome);
   const [telefone, setTelefone] = useState("");
   const [enderecoCidade, setEnderecoCidade] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -26,6 +29,7 @@ export default function ConfiguracoesPage() {
       const dados = (await authFetch("/barbearia/minha")) as Barbearia;
       setBarbearia(dados);
       setNome(dados.nome);
+      setSlug(dados.slug);
       setTelefone(dados.telefone ?? "");
       setEnderecoCidade(dados.enderecoCidade ?? "");
     } catch (error) {
@@ -54,12 +58,19 @@ export default function ConfiguracoesPage() {
         method: "PATCH",
         body: JSON.stringify({
           nome: nome.trim(),
+          slug: slugify(slug),
           telefone: telefone.trim() || undefined,
           enderecoCidade: enderecoCidade.trim() || undefined,
         }),
       })) as Barbearia;
+      const linkMudou = atualizada.slug !== barbearia?.slug;
       setBarbearia(atualizada);
-      setToast("Dados da barbearia atualizados");
+      setSlug(atualizada.slug);
+      setToast(
+        linkMudou
+          ? `Link atualizado: /agendar/${atualizada.slug}`
+          : "Dados da barbearia atualizados",
+      );
     } catch (error) {
       setErroForm(
         error instanceof Error
@@ -83,12 +94,14 @@ export default function ConfiguracoesPage() {
         </p>
       </header>
 
-      {carregando ? (
+      {carregando && (
         <div
           aria-busy="true"
           className="h-40 animate-pulse rounded-lg border border-zinc-200 bg-zinc-100 motion-reduce:animate-none"
         />
-      ) : erroCarga ? (
+      )}
+
+      {!carregando && erroCarga && (
         <div
           role="alert"
           className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-base leading-6 text-red-800"
@@ -96,7 +109,9 @@ export default function ConfiguracoesPage() {
           <AlertCircle aria-hidden="true" size={20} className="mt-0.5 shrink-0" />
           <span>{erroCarga}</span>
         </div>
-      ) : barbearia ? (
+      )}
+
+      {!carregando && !erroCarga && barbearia && (
         <form onSubmit={salvar} className="space-y-6 rounded-lg border border-zinc-200 p-4">
           {!ehDono && (
             <p className="text-sm leading-6 text-zinc-700">
@@ -147,8 +162,40 @@ export default function ConfiguracoesPage() {
           </div>
 
           <div className="space-y-2">
-            <p className="text-base font-semibold">Link de agendamento</p>
-            <p className="text-base leading-6 text-zinc-700">/agendar/{barbearia.slug}</p>
+            <label htmlFor="config-slug" className="text-base font-semibold">
+              Link de agendamento
+            </label>
+            <div className="flex items-stretch">
+              <span className="flex items-center rounded-l-md border border-r-0 border-zinc-300 bg-zinc-50 px-3 text-base text-zinc-600">
+                /agendar/
+              </span>
+              <input
+                id="config-slug"
+                required
+                minLength={3}
+                maxLength={60}
+                disabled={!ehDono}
+                value={slug}
+                onChange={(event) => setSlug(event.target.value)}
+                onBlur={() => setSlug(slugify(slug))}
+                aria-describedby="config-slug-ajuda"
+                className={`${campoClasse} min-w-0 rounded-l-none disabled:bg-zinc-100 disabled:text-zinc-600`}
+              />
+            </div>
+            {ehDono && sugestao !== slugify(slug) && (
+              <button
+                type="button"
+                onClick={() => setSlug(sugestao)}
+                className="min-h-11 text-left text-base font-medium text-zinc-950 underline underline-offset-4 hover:text-zinc-700"
+              >
+                Usar o nome: /agendar/{sugestao}
+              </button>
+            )}
+            <p id="config-slug-ajuda" className="text-sm leading-6 text-zinc-700">
+              {slugify(slug) !== barbearia.slug
+                ? `Quem abrir o link antigo (/agendar/${barbearia.slug}) vai cair no novo automaticamente.`
+                : "Só letras, números e hífen. Se mudar, o link antigo continua funcionando."}
+            </p>
           </div>
 
           {erroForm && (
@@ -171,7 +218,7 @@ export default function ConfiguracoesPage() {
             </button>
           )}
         </form>
-      ) : null}
+      )}
 
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>

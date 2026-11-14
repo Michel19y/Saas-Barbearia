@@ -21,6 +21,7 @@ describe('AuthService', () => {
   const prisma = {
     usuario: { findUnique: vi.fn() },
     barbearia: { findMany: vi.fn(), create: vi.fn() },
+    slugAntigo: { findMany: vi.fn() },
   };
   const jwt = { sign: vi.fn(() => 'token') };
 
@@ -28,6 +29,7 @@ describe('AuthService', () => {
     vi.clearAllMocks();
     prisma.usuario.findUnique.mockResolvedValue(null);
     prisma.barbearia.findMany.mockResolvedValue([]);
+    prisma.slugAntigo.findMany.mockResolvedValue([]);
     prisma.barbearia.create.mockImplementation(({ data }) =>
       Promise.resolve({
         id: 'barbearia-1',
@@ -89,6 +91,24 @@ describe('AuthService', () => {
 
       expect(prisma.barbearia.create.mock.calls[0][0].data.slug).toBe(
         'barbearia-excellence-3',
+      );
+    });
+
+    it('não reaproveita link antigo de outra barbearia', async () => {
+      prisma.slugAntigo.findMany.mockResolvedValue([{ slug: 'barbearia-excellence' }]);
+
+      await service.register(registro);
+
+      expect(prisma.barbearia.create.mock.calls[0][0].data.slug).toBe(
+        'barbearia-excellence-2',
+      );
+    });
+
+    it('converte link duplicado em cadastro simultâneo em 409', async () => {
+      prisma.barbearia.create.mockRejectedValue({ code: 'P2002', meta: { target: ['slug'] } });
+
+      await expect(service.register(registro)).rejects.toThrow(
+        new ConflictException('Esse link já está em uso, escolha outro'),
       );
     });
 

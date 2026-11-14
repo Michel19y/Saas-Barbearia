@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { formatarPreco } from "@/lib/formato";
 
@@ -64,6 +65,21 @@ export default function AgendarPage({
   const [erro, setErro] = useState<string | null>(null);
   const [confirmado, setConfirmado] = useState(false);
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
+  const router = useRouter();
+
+  // Link antigo (a barbearia trocou o link): troca a URL pelo link atual, sem recarregar.
+  // Os dados abaixo já funcionam com o link antigo, então a página não depende disso.
+  useEffect(() => {
+    async function irParaLinkAtual() {
+      try {
+        const { slug: atual } = (await apiFetch(`/publico/${slug}`)) as { slug: string };
+        if (atual && atual !== slug) router.replace(`/agendar/${atual}`);
+      } catch {
+        // Barbearia inexistente: as outras chamadas já mostram o erro na tela
+      }
+    }
+    void irParaLinkAtual();
+  }, [slug, router]);
 
   useEffect(() => {
     apiFetch(`/publico/${slug}/servicos`)

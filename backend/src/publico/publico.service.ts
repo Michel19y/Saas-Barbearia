@@ -1,11 +1,13 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { barbeariaPorSlug } from '../common/slug-barbearia.js';
 import { CriarAgendamentoPublicoDto } from './dto/criar-agendamento-publico.dto.js';
 
 const ABERTURA_HORA = 9;
 const FECHAMENTO_HORA = 21;
 const PASSO_MIN = 30;
+const MS_POR_MINUTO = 60_000;
 
 // Quem atende cliente. A recepção entra no sistema, mas não é agendável.
 const PAPEIS_AGENDAVEIS = ['DONO', 'PROFISSIONAL'] as const;
@@ -14,10 +16,15 @@ const PAPEIS_AGENDAVEIS = ['DONO', 'PROFISSIONAL'] as const;
 export class PublicoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async getBarbeariaPorSlug(slug: string) {
-    const barbearia = await this.prisma.barbearia.findUnique({ where: { slug } });
-    if (!barbearia) throw new NotFoundException('Barbearia não encontrada');
-    return barbearia;
+  /** Aceita o link atual ou um link antigo da barbearia (links já divulgados continuam valendo). */
+  private getBarbeariaPorSlug(slug: string) {
+    return barbeariaPorSlug(this.prisma, slug);
+  }
+
+  /** Dados públicos mínimos; `slug` é sempre o atual, para a página trocar um link antigo pelo novo. */
+  async dadosPublicos(slug: string) {
+    const barbearia = await this.getBarbeariaPorSlug(slug);
+    return { nome: barbearia.nome, slug: barbearia.slug };
   }
 
   private async getServicosOrdenados(barbeariaId: string, servicoIds: string[]) {
@@ -98,9 +105,9 @@ export class PublicoService {
     for (
       let slot = new Date(abertura);
       slot < fechamento;
-      slot = new Date(slot.getTime() + PASSO_MIN * 60000)
+      slot = new Date(slot.getTime() + PASSO_MIN * MS_POR_MINUTO)
     ) {
-      const fimSlot = new Date(slot.getTime() + duracaoTotal * 60000);
+      const fimSlot = new Date(slot.getTime() + duracaoTotal * MS_POR_MINUTO);
       if (fimSlot > fechamento) break;
       if (slot.getTime() <= Date.now()) continue;
 
@@ -132,7 +139,7 @@ export class PublicoService {
     }
 
     const inicio = new Date(dto.inicio);
-    const fimTotal = new Date(inicio.getTime() + duracaoTotal * 60000);
+    const fimTotal = new Date(inicio.getTime() + duracaoTotal * MS_POR_MINUTO);
 
     const ocupados = await this.prisma.agendamento.findMany({
       where: {
@@ -152,6 +159,8 @@ export class PublicoService {
       throw new ConflictException('Esse horário acabou de ser ocupado, escolha outro');
     }
 
+    // Mantém só os dígitos: "(11) 98888-7777" vira "11988887777"; espaços, parênteses e hífens saem.
+    // https://regex101.com/?flavor=javascript&flags=g&regex=%5CD&testString=(11)%2098888-7777
     const telefone = dto.telefone.replace(/\D/g, '');
     let cliente = await this.prisma.cliente.findFirst({
       where: { barbeariaId: barbearia.id, telefone },
@@ -166,7 +175,7 @@ export class PublicoService {
     const criados = [];
     let cursor = inicio;
     for (const servico of servicos) {
-      const fimServico = new Date(cursor.getTime() + servico.duracaoMin * 60000);
+      const fimServico = new Date(cursor.getTime() + servico.duracaoMin * MS_POR_MINUTO);
       const agendamento = await this.prisma.agendamento.create({
         data: {
           barbeariaId: barbearia.id,

@@ -5,10 +5,10 @@ export const MENSAGEM_EMAIL_EM_USO = 'Esse e-mail já está cadastrado';
 
 /** Erro do Prisma de violação de índice único (ex.: dois cadastros simultâneos com o mesmo e-mail). */
 export function ehEmailDuplicado(erro: unknown): boolean {
-  const e = erro as { code?: string; meta?: { target?: unknown } } | null;
+  const e = erro as { code?: string; meta?: unknown } | null;
   if (e?.code !== 'P2002') return false;
-  const alvo = e.meta?.target;
-  return alvo === undefined || JSON.stringify(alvo).includes('email');
+  // O campo aparece em meta.target ou, com driver adapter, dentro de meta.driverAdapterError
+  return e.meta === undefined || JSON.stringify(e.meta).includes('email');
 }
 
 /** Converte a violação de e-mail único em 409 com mensagem amigável; repassa outros erros. */
