@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: saas-barbearia-api
+    name: saas-barbearia
     runtime: docker
-    dockerfilePath: backend/Dockerfile
-    dockerContext: backend
+    dockerfilePath: Dockerfile
+    dockerContext: .
     plan: free
     healthCheckPath: /api
     envVars:
@@ -24,14 +24,4 @@ services:
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
-        sync: false
-
-  - type: web
-    name: saas-barbearia-web
-    runtime: docker
-    dockerfilePath: frontend/Dockerfile
-    dockerContext: frontend
-    plan: free
-    envVars:
-      - key: NEXT_PUBLIC_API_URL
         sync: false
