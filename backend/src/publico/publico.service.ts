@@ -2,19 +2,33 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { barbeariaPorSlug } from '../common/slug-barbearia.js';
+import { HorariosService } from '../horarios/horarios.service.js';
+import {
+  FORMATO_DATA,
+  cabeNoExpediente,
+  instante,
+  janelaDoProfissional,
+} from '../horarios/expediente.js';
 import { CriarAgendamentoPublicoDto } from './dto/criar-agendamento-publico.dto.js';
 
-const ABERTURA_HORA = 9;
-const FECHAMENTO_HORA = 21;
 const PASSO_MIN = 30;
 const MS_POR_MINUTO = 60_000;
 
 // Quem atende cliente. A recepção entra no sistema, mas não é agendável.
 const PAPEIS_AGENDAVEIS = ['DONO', 'PROFISSIONAL'] as const;
 
+/** "2026-12-10", senão 404 (mesmo comportamento de antes para data inválida). */
+function validarData(dataStr: string): string {
+  if (!FORMATO_DATA.test(dataStr ?? '')) throw new NotFoundException('Data inválida');
+  return dataStr;
+}
+
 @Injectable()
 export class PublicoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly horarios: HorariosService,
+  ) {}
 
   /** Aceita o link atual ou um link antigo da barbearia (links já divulgados continuam valendo). */
   private getBarbeariaPorSlug(slug: string) {
@@ -76,49 +90,70 @@ export class PublicoService {
     const servicos = await this.getServicosOrdenados(barbearia.id, servicoIds);
     const duracaoTotal = servicos.reduce((soma, s) => soma + s.duracaoMin, 0);
 
-    const [ano, mes, dia] = dataStr.split('-').map(Number);
-    if (!ano || !mes || !dia) throw new NotFoundException('Data inválida');
+    const data = validarData(dataStr);
+    const candidatos = await this.candidatos(barbearia.id, profissionalId);
+    const janelas = await this.janelasDoDia(barbearia.id, candidatos, data);
+    if (janelas.length === 0) return [];
 
-    const profissionais = await this.getProfissionaisAgendaveis(barbearia.id);
-    const candidatos = profissionalId
-      ? profissionais.filter((p) => p.id === profissionalId)
-      : profissionais;
-    if (candidatos.length === 0) {
-      throw new NotFoundException('Profissional não encontrado');
-    }
-
-    const abertura = new Date(ano, mes - 1, dia, ABERTURA_HORA, 0, 0, 0);
-    const fechamento = new Date(ano, mes - 1, dia, FECHAMENTO_HORA, 0, 0, 0);
-
+    // Grade de horários do primeiro que abre ao último que fecha; cada horário só entra
+    // se algum profissional estiver de expediente e livre do início ao fim do atendimento.
+    const inicioDia = Math.min(...janelas.map((j) => j.inicioMin));
+    const fimDia = Math.max(...janelas.map((j) => j.fimMin));
     const agendamentosDoDia = await this.prisma.agendamento.findMany({
       where: {
         barbeariaId: barbearia.id,
-        profissionalId: { in: candidatos.map((p) => p.id) },
+        profissionalId: { in: janelas.map((j) => j.profissionalId) },
         status: { notIn: ['CANCELADO'] },
-        inicio: { lt: fechamento },
-        fim: { gt: abertura },
+        inicio: { lt: instante(data, fimDia) },
+        fim: { gt: instante(data, inicioDia) },
       },
       select: { inicio: true, fim: true, profissionalId: true },
     });
 
-    const horarios: string[] = [];
-    for (
-      let slot = new Date(abertura);
-      slot < fechamento;
-      slot = new Date(slot.getTime() + PASSO_MIN * MS_POR_MINUTO)
-    ) {
-      const fimSlot = new Date(slot.getTime() + duracaoTotal * MS_POR_MINUTO);
-      if (fimSlot > fechamento) break;
-      if (slot.getTime() <= Date.now()) continue;
+    const quantidade = Math.floor((fimDia - inicioDia) / PASSO_MIN) + 1;
+    return Array.from({ length: quantidade }, (_, k) => inicioDia + k * PASSO_MIN)
+      .filter((minuto) => instante(data, minuto).getTime() > Date.now())
+      .filter((minuto) =>
+        janelas.some(
+          (j) =>
+            minuto >= j.inicioMin &&
+            minuto + duracaoTotal <= j.fimMin &&
+            this.estaLivre(
+              agendamentosDoDia,
+              j.profissionalId,
+              instante(data, minuto),
+              instante(data, minuto + duracaoTotal),
+            ),
+        ),
+      )
+      .map((minuto) => instante(data, minuto).toISOString());
+  }
 
-      // O horário aparece se ao menos um dos profissionais candidatos está livre.
-      const alguemLivre = candidatos.some((profissional) =>
-        this.estaLivre(agendamentosDoDia, profissional.id, slot, fimSlot),
-      );
-      if (alguemLivre) horarios.push(slot.toISOString());
-    }
+  /** A barbearia (ou o profissional escolhido) atende nesse dia? Para a página mostrar "Fechado". */
+  async expediente(slug: string, dataStr: string, profissionalId?: string) {
+    const barbearia = await this.getBarbeariaPorSlug(slug);
+    const data = validarData(dataStr);
+    const candidatos = await this.candidatos(barbearia.id, profissionalId);
+    const janelas = await this.janelasDoDia(barbearia.id, candidatos, data);
+    return { aberto: janelas.length > 0 };
+  }
 
-    return horarios;
+  private async candidatos(barbeariaId: string, profissionalId?: string) {
+    const profissionais = await this.getProfissionaisAgendaveis(barbeariaId);
+    const candidatos = profissionalId
+      ? profissionais.filter((p) => p.id === profissionalId)
+      : profissionais;
+    if (candidatos.length === 0) throw new NotFoundException('Profissional não encontrado');
+    return candidatos;
+  }
+
+  /** Expediente de cada candidato na data; quem não trabalha no dia fica de fora. */
+  private async janelasDoDia(barbeariaId: string, candidatos: { id: string }[], data: string) {
+    const config = await this.horarios.carregarConfig(barbeariaId);
+    return candidatos.flatMap((p) => {
+      const janela = janelaDoProfissional(config, p.id, data);
+      return janela ? [{ profissionalId: p.id, ...janela }] : [];
+    });
   }
 
   async criarAgendamentoPublico(slug: string, dto: CriarAgendamentoPublicoDto) {
@@ -152,7 +187,13 @@ export class PublicoService {
       select: { inicio: true, fim: true, profissionalId: true },
     });
 
-    const escolhido = candidatos.find((profissional) =>
+    // Só aceita dentro do expediente (mesma regra que monta os horários oferecidos)
+    const config = await this.horarios.carregarConfig(barbearia.id);
+    const deExpediente = candidatos.filter((p) => cabeNoExpediente(config, p.id, inicio, fimTotal));
+    if (deExpediente.length === 0) {
+      throw new ConflictException('Esse horário está fora do expediente, escolha outro');
+    }
+    const escolhido = deExpediente.find((profissional) =>
       this.estaLivre(ocupados, profissional.id, inicio, fimTotal),
     );
     if (!escolhido) {

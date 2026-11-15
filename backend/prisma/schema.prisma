@@ -46,6 +46,10 @@ model Barbearia {
   agendamentos Agendamento[]
   atendimentos Atendimento[]
   slugsAntigos SlugAntigo[]
+  excecoesHorario ExcecaoHorario[]
+
+  // Expediente da semana: 7 dias (0 = domingo) com aberto/início/fim. Vazio = padrão 09:00–21:00 todo dia
+  horarioSemanal Json?
 
   @@map("barbearias")
 }
@@ -78,6 +82,10 @@ model Usuario {
   googleRefreshToken String?
 
   agendamentos Agendamento[] @relation("ProfissionalAgendamentos")
+  excecoesHorario ExcecaoHorario[]
+
+  // Semana própria do profissional (mesmo formato da barbearia). Vazio = segue a barbearia
+  horarioSemanal Json?
 
   @@index([barbeariaId])
   @@map("usuarios")
@@ -172,4 +180,27 @@ model Atendimento {
 
   @@index([barbeariaId, data])
   @@map("atendimentos")
+}
+
+// Exceção de expediente numa data: fechar o dia ou mudar o horário só naquele dia.
+// Sem profissional = vale para a barbearia toda; com profissional = só para ele.
+// Uma exceção por (barbearia, profissional, data); garantido no serviço porque o
+// Postgres trata profissionalId nulo como sempre diferente num índice único.
+model ExcecaoHorario {
+  id             String    @id @default(cuid())
+  barbeariaId    String
+  barbearia      Barbearia @relation(fields: [barbeariaId], references: [id], onDelete: Cascade)
+  profissionalId String?
+  profissional   Usuario?  @relation(fields: [profissionalId], references: [id], onDelete: Cascade)
+
+  data    String // "2026-12-10", dia no fuso da barbearia
+  fechado Boolean
+  inicio  String? // "14:00" (só quando aberto)
+  fim     String? // "18:00"
+  motivo  String?
+
+  criadoEm DateTime @default(now())
+
+  @@index([barbeariaId, data])
+  @@map("excecoes_horario")
 }

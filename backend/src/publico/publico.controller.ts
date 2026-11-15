@@ -21,6 +21,15 @@ export class PublicoController {
     return this.publicoService.listarProfissionais(slug);
   }
 
+  @Get('expediente')
+  expediente(
+    @Param('slug') slug: string,
+    @Query('data') data: string,
+    @Query('profissionalId') profissionalId?: string,
+  ) {
+    return this.publicoService.expediente(slug, data, profissionalId);
+  }
+
   @Get('horarios')
   horarios(
     @Param('slug') slug: string,

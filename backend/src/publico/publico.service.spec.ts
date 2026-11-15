@@ -1,0 +1,111 @@
+import { ConflictException } from '@nestjs/common';
+import { Test, type TestingModule } from '@nestjs/testing';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { HorariosService } from '../horarios/horarios.service.js';
+import type { ConfigExpediente } from '../horarios/expediente.js';
+import { PublicoService } from './publico.service.js';
+
+const AGORA = new Date('2026-11-14T12:00:00-03:00');
+const DIA = '2026-12-10';
+const DURACAO_CORTE = 30;
+
+/** Horários oferecidos como "HH:MM" de Brasília. */
+const horas = (isos: string[]) =>
+  isos.map((iso) =>
+    new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(
+      new Date(iso),
+    ),
+  );
+
+describe('PublicoService com horário de funcionamento', () => {
+  let service: PublicoService;
+  let config: ConfigExpediente;
+  const prisma = {
+    barbearia: { findUnique: vi.fn() },
+    servico: { findMany: vi.fn() },
+    usuario: { findMany: vi.fn() },
+    agendamento: { findMany: vi.fn(), create: vi.fn() },
+    cliente: { findFirst: vi.fn(), create: vi.fn() },
+  };
+  const horarios = { carregarConfig: vi.fn(() => Promise.resolve(config)) };
+
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(AGORA);
+    vi.clearAllMocks();
+    config = { barbearia: null, profissionais: {}, excecoes: [] };
+    prisma.barbearia.findUnique.mockResolvedValue({ id: 'b1', slug: 'loja', nome: 'Loja' });
+    prisma.servico.findMany.mockResolvedValue([{ id: 's1', duracaoMin: DURACAO_CORTE, ativo: true }]);
+    prisma.usuario.findMany.mockResolvedValue([
+      { id: 'ana', nome: 'Ana' },
+      { id: 'bruno', nome: 'Bruno' },
+    ]);
+    prisma.agendamento.findMany.mockResolvedValue([]);
+
+    const modulo: TestingModule = await Test.createTestingModule({
+      providers: [
+        PublicoService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: HorariosService, useValue: horarios },
+      ],
+    }).compile();
+    service = modulo.get(PublicoService);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('sem configuração continua igual a antes: 09:00 até 20:30', async () => {
+    const lista = horas(await service.horariosDisponiveis('loja', 's1', DIA));
+    expect([lista[0], lista.at(-1)]).toEqual(['09:00', '20:30']);
+  });
+
+  it('dia fechado: nenhum horário e expediente "fechado"', async () => {
+    config.excecoes = [{ profissionalId: null, data: DIA, fechado: true, inicio: null, fim: null }];
+
+    expect(await service.horariosDisponiveis('loja', 's1', DIA)).toEqual([]);
+    expect(await service.expediente('loja', DIA)).toEqual({ aberto: false });
+  });
+
+  it('dia 14h–18h: só oferece horários da tarde que terminam até 18h', async () => {
+    config.excecoes = [{ profissionalId: null, data: DIA, fechado: false, inicio: '14:00', fim: '18:00' }];
+    expect(horas(await service.horariosDisponiveis('loja', 's1', DIA))).toEqual([
+      '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+    ]);
+  });
+
+  it('folga da Ana: escolhendo a Ana não há horário; sem escolher, o Bruno atende', async () => {
+    config.excecoes = [{ profissionalId: 'ana', data: DIA, fechado: true, inicio: null, fim: null }];
+
+    expect(await service.horariosDisponiveis('loja', 's1', DIA, 'ana')).toEqual([]);
+    expect(await service.expediente('loja', DIA, 'ana')).toEqual({ aberto: false });
+    expect((await service.horariosDisponiveis('loja', 's1', DIA)).length).toBeGreaterThan(0);
+  });
+
+  it('recusa agendamento fora do expediente mesmo vindo direto pela API', async () => {
+    config.excecoes = [{ profissionalId: null, data: DIA, fechado: false, inicio: '14:00', fim: '18:00' }];
+
+    await expect(
+      service.criarAgendamentoPublico('loja', {
+        servicoIds: ['s1'],
+        inicio: `${DIA}T10:00:00-03:00`,
+        nome: 'Pedro',
+        telefone: '11999990000',
+      }),
+    ).rejects.toThrow(new ConflictException('Esse horário está fora do expediente, escolha outro'));
+    expect(prisma.agendamento.create).not.toHaveBeenCalled();
+  });
+
+  it('com folga da Ana, o agendamento "qualquer um" vai para o Bruno', async () => {
+    config.excecoes = [{ profissionalId: 'ana', data: DIA, fechado: true, inicio: null, fim: null }];
+    prisma.cliente.findFirst.mockResolvedValue({ id: 'c1', nome: 'Pedro' });
+    prisma.agendamento.create.mockImplementation(({ data }) => Promise.resolve(data));
+
+    await service.criarAgendamentoPublico('loja', {
+      servicoIds: ['s1'],
+      inicio: `${DIA}T10:00:00-03:00`,
+      nome: 'Pedro',
+      telefone: '11999990000',
+    });
+    expect(prisma.agendamento.create.mock.calls[0][0].data.profissionalId).toBe('bruno');
+  });
+});

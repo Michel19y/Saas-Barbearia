@@ -17,7 +17,8 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     const message = Array.isArray(body?.message)
       ? body.message.join(", ")
       : body?.message;
-    throw new Error(message || `Erro ${res.status}`);
+    // O corpo vai junto no erro: algumas respostas trazem dados úteis (ex.: 409 com a lista de afetados)
+    throw Object.assign(new Error(message || `Erro ${res.status}`), { status: res.status, dados: body });
   }
 
   if (res.status === STATUS_SEM_CONTEUDO) return null;

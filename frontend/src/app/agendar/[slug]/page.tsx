@@ -61,6 +61,7 @@ export default function AgendarPage({
   const [telefone, setTelefone] = useState("");
   const [carregandoServicos, setCarregandoServicos] = useState(true);
   const [carregandoHorarios, setCarregandoHorarios] = useState(false);
+  const [fechadoNoDia, setFechadoNoDia] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmado, setConfirmado] = useState(false);
@@ -113,6 +114,26 @@ export default function AgendarPage({
       .catch(() => setHorarios([]))
       .finally(() => setCarregandoHorarios(false));
   }, [slug, servicoIds, data, profissionalId]);
+
+  // Dia fechado (barbearia ou profissional de folga): mostra "Fechado" em vez de "sem horário livre"
+  useEffect(() => {
+    let ativo = true;
+    async function verificarExpediente() {
+      try {
+        const profissional = profissionalId ? `&profissionalId=${encodeURIComponent(profissionalId)}` : "";
+        const { aberto } = (await apiFetch(
+          `/publico/${slug}/expediente?data=${encodeURIComponent(data)}${profissional}`,
+        )) as { aberto: boolean };
+        if (ativo) setFechadoNoDia(!aberto);
+      } catch {
+        if (ativo) setFechadoNoDia(false);
+      }
+    }
+    void verificarExpediente();
+    return () => {
+      ativo = false;
+    };
+  }, [slug, data, profissionalId]);
 
   function alternarServico(id: string) {
     setServicoIds((atual) =>
@@ -316,7 +337,9 @@ export default function AgendarPage({
             )}
             {servicosSelecionados.length > 0 && !carregandoHorarios && horarios.length === 0 && (
               <p className="text-sm text-zinc-500">
-                Nenhum horário livre nesse dia. Escolha outro dia.
+                {fechadoNoDia
+                  ? `Fechado neste dia${profissionalId ? " para esse profissional" : ""}. Escolha outro dia.`
+                  : "Nenhum horário livre nesse dia. Escolha outro dia."}
               </p>
             )}
             {!carregandoHorarios && horarios.length > 0 && (

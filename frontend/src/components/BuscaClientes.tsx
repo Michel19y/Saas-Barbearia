@@ -14,7 +14,7 @@ export function CampoBusca({
   value,
   onChange,
   id = "buscar-clientes",
-  placeholder = "Buscar por nome, telefone ou e-mail",
+  placeholder = "Nome, telefone ou e-mail",
   label = "Buscar clientes",
 }: BuscaClientesProps) {
   return (

@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/dashboard/clientes", label: "Clientes" },
   { href: "/dashboard/agendamentos", label: "Agendamentos" },
   { href: "/dashboard/equipe", label: "Equipe" },
+  { href: "/dashboard/horarios", label: "Horários" },
   { href: "/dashboard/financeiro", label: "Financeiro" },
   { href: "/dashboard/importar", label: "Importar" },
   { href: "/dashboard/configuracoes", label: "Configurações" },

@@ -710,7 +710,7 @@ export default function AgendamentosPage() {
             onChange={setTermo}
             id="buscar-agendamentos"
             label="Buscar agendamentos"
-            placeholder="Buscar por cliente, telefone ou serviço"
+            placeholder="Cliente, telefone ou serviço"
           />
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">

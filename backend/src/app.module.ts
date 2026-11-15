@@ -13,6 +13,7 @@ import { ImportacoesModule } from './importacoes/importacoes.module.js';
 import { AtendimentosModule } from './atendimentos/atendimentos.module.js';
 import { PublicoModule } from './publico/publico.module.js';
 import { BarbeariaModule } from './barbearia/barbearia.module.js';
+import { HorariosModule } from './horarios/horarios.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { BarbeariaModule } from './barbearia/barbearia.module.js';
     AtendimentosModule,
     PublicoModule,
     BarbeariaModule,
+    HorariosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
