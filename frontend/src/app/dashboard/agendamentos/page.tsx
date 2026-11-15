@@ -640,6 +640,15 @@ export default function AgendamentosPage() {
     }, 2500);
   }
 
+  /** Todos os serviços do atendimento aberto na edição (mesmo grupo), em ordem de horário. */
+  const grupoDoDrawer = drawer
+    ? drawer.grupoId
+      ? agendamentos
+          .filter((item) => item.grupoId === drawer.grupoId && item.status !== "CANCELADO")
+          .sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime())
+      : [drawer]
+    : [];
+
   async function salvarAgendamento(values: AgendamentoFormValues) {
     const base = {
       clienteId: values.clienteId || undefined,
@@ -649,15 +658,19 @@ export default function AgendamentosPage() {
     };
 
     if (drawer) {
-      const atualizado = (await authFetch(`/agendamentos/${drawer.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ ...base, servicoId: values.servicoIds[0] }),
-      })) as Agendamento;
-      setAgendamentos((atuais) =>
-        atuais.map((item) => (item.id === atualizado.id ? atualizado : item)),
+      // Edita o atendimento inteiro: a lista de serviços substitui a atual (pode acrescentar ou tirar)
+      const antigos = new Set(grupoDoDrawer.map((item) => item.id));
+      const atualizados = (await authFetch(`/agendamentos/${drawer.id}/servicos`, {
+        method: "PUT",
+        body: JSON.stringify({ ...base, servicoIds: values.servicoIds }),
+      })) as Agendamento[];
+      setAgendamentos((atuais) => [...atuais.filter((item) => !antigos.has(item.id)), ...atualizados]);
+      destacar(atualizados[0].id);
+      setToast(
+        atualizados.length > 1
+          ? `Agendamento de ${nomeCliente(atualizados[0])} atualizado (${atualizados.length} serviços)`
+          : `Agendamento de ${nomeCliente(atualizados[0])} atualizado`,
       );
-      destacar(atualizado.id);
-      setToast(`Agendamento de ${nomeCliente(atualizado)} atualizado`);
     } else {
       const criados = (await authFetch("/agendamentos", {
         method: "POST",
@@ -1384,6 +1397,7 @@ export default function AgendamentosPage() {
         <AgendamentoDrawer
           key={drawer?.id ?? "novo"}
           agendamento={drawer}
+          grupo={grupoDoDrawer}
           dataInicial={diaSelecionado ?? hojeLocal()}
           clientes={clientes}
           servicos={servicosAtivos}

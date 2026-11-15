@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -6,6 +6,7 @@ import type { JwtPayload } from '../auth/jwt-payload.js';
 import { AgendamentosService } from './agendamentos.service.js';
 import { CreateAgendamentoDto } from './dto/create-agendamento.dto.js';
 import { UpdateAgendamentoDto } from './dto/update-agendamento.dto.js';
+import { EditarServicosDto } from './dto/editar-servicos.dto.js';
 
 @ApiTags('agendamentos')
 @ApiBearerAuth()
@@ -27,6 +28,12 @@ export class AgendamentosController {
   @Get(':id')
   findOne(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.agendamentosService.findOne(user.barbeariaId, id);
+  }
+
+  /** Troca os serviços do atendimento (ex.: acrescentar sobrancelha na barba já marcada). */
+  @Put(':id/servicos')
+  editarServicos(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() dto: EditarServicosDto) {
+    return this.agendamentosService.editarServicos(user.barbeariaId, id, dto);
   }
 
   @Patch(':id')

@@ -9,6 +9,9 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateAgendamentoDto } from './dto/create-agendamento.dto.js';
 import { UpdateAgendamentoDto } from './dto/update-agendamento.dto.js';
+import { EditarServicosDto } from './dto/editar-servicos.dto.js';
+
+const MS_POR_MINUTO = 60_000;
 
 @Injectable()
 export class AgendamentosService {
@@ -169,7 +172,7 @@ export class AgendamentosService {
       }
       const inicio = dto.inicio ? new Date(dto.inicio) : existente.inicio;
       const fim = new Date(inicio.getTime() + servico.duracaoMin * 60000);
-      await this.verificarConflito(existente.profissionalId, inicio, fim, id);
+      await this.verificarConflito(existente.profissionalId, inicio, fim, [id]);
       data.inicio = inicio;
       data.fim = fim;
     }
@@ -218,15 +221,111 @@ export class AgendamentosService {
     });
   }
 
+  /**
+   * Troca os serviços de um atendimento (todos os itens do mesmo grupo), mantendo cliente,
+   * status e observação. Os serviços ficam em sequência a partir do início; itens que
+   * sobram são apagados e os que faltam são criados. Ex.: marcou barba e na hora quer
+   * barba + sobrancelha.
+   */
+  async editarServicos(barbeariaId: string, id: string, dto: EditarServicosDto) {
+    const alvo = await this.prisma.agendamento.findUnique({ where: { id } });
+    if (!alvo) throw new NotFoundException('Agendamento não encontrado');
+    if (alvo.barbeariaId !== barbeariaId) throw new ForbiddenException();
+
+    const grupo = alvo.grupoId
+      ? await this.prisma.agendamento.findMany({
+          where: { barbeariaId, grupoId: alvo.grupoId, status: { not: 'CANCELADO' } },
+          orderBy: { inicio: 'asc' },
+        })
+      : [alvo];
+    if (grupo.some((item) => item.status === 'CONCLUIDO')) {
+      throw new BadRequestException(
+        'Esse atendimento já foi concluído e está no Financeiro. Para mudar os serviços, volte o status antes.',
+      );
+    }
+
+    const encontrados = await this.prisma.servico.findMany({
+      where: { id: { in: dto.servicoIds }, barbeariaId },
+    });
+    if (encontrados.length !== new Set(dto.servicoIds).size) {
+      throw new NotFoundException('Um ou mais serviços não encontrados');
+    }
+    const servicos = dto.servicoIds.map((servicoId) => encontrados.find((s) => s.id === servicoId)!);
+
+    const cliente = await this.clienteDaEdicao(barbeariaId, dto);
+    const primeiro = grupo[0];
+    const inicio = dto.inicio ? new Date(dto.inicio) : primeiro.inicio;
+    const duracaoTotal = servicos.reduce((soma, s) => soma + s.duracaoMin, 0);
+    await this.verificarConflito(
+      primeiro.profissionalId,
+      inicio,
+      new Date(inicio.getTime() + duracaoTotal * MS_POR_MINUTO),
+      grupo.map((item) => item.id),
+    );
+
+    // Horário de cada serviço, um depois do outro
+    const blocos = servicos.reduce<{ servicoId: string; inicio: Date; fim: Date }[]>((lista, servico) => {
+      const comeco = lista.at(-1)?.fim ?? inicio;
+      return [...lista, { servicoId: servico.id, inicio: comeco, fim: new Date(comeco.getTime() + servico.duracaoMin * MS_POR_MINUTO) }];
+    }, []);
+    const grupoId = blocos.length > 1 ? (alvo.grupoId ?? randomUUID()) : null;
+    const comum = {
+      ...cliente,
+      grupoId,
+      ...(dto.observacao !== undefined ? { observacao: dto.observacao.trim() || null } : {}),
+    };
+
+    const ids = await this.prisma.$transaction(async (tx) => {
+      const sobrando = grupo.slice(blocos.length).map((item) => item.id);
+      if (sobrando.length > 0) await tx.agendamento.deleteMany({ where: { id: { in: sobrando } } });
+      const salvos = await Promise.all(
+        blocos.map((bloco, i) =>
+          grupo[i]
+            ? tx.agendamento.update({ where: { id: grupo[i].id }, data: { ...bloco, ...comum } })
+            : tx.agendamento.create({
+                data: {
+                  ...bloco,
+                  barbeariaId,
+                  profissionalId: primeiro.profissionalId,
+                  status: primeiro.status,
+                  clienteId: primeiro.clienteId,
+                  clienteNome: primeiro.clienteNome,
+                  observacao: primeiro.observacao,
+                  ...comum,
+                },
+              }),
+        ),
+      );
+      return salvos.map((item) => item.id);
+    });
+
+    return this.prisma.agendamento.findMany({
+      where: { id: { in: ids } },
+      include: { cliente: true, servico: true },
+      orderBy: { inicio: 'asc' },
+    });
+  }
+
+  /** Cliente informado na edição: cadastrado (usa o nome do cadastro) ou só um nome. */
+  private async clienteDaEdicao(barbeariaId: string, dto: EditarServicosDto) {
+    if (dto.clienteId) {
+      const cliente = await this.prisma.cliente.findUnique({ where: { id: dto.clienteId } });
+      if (cliente?.barbeariaId !== barbeariaId) throw new NotFoundException('Cliente não encontrado');
+      return { clienteId: cliente.id, clienteNome: cliente.nome };
+    }
+    if (dto.clienteNome !== undefined) return { clienteId: null, clienteNome: dto.clienteNome.trim() };
+    return {};
+  }
+
   private async verificarConflito(
     profissionalId: string,
     inicio: Date,
     fim: Date,
-    ignorarId?: string,
+    ignorarIds: string[] = [],
   ) {
     const conflito = await this.prisma.agendamento.findFirst({
       where: {
-        id: ignorarId ? { not: ignorarId } : undefined,
+        id: ignorarIds.length > 0 ? { notIn: ignorarIds } : undefined,
         profissionalId,
         status: { notIn: ['CANCELADO'] },
         inicio: { lt: fim },

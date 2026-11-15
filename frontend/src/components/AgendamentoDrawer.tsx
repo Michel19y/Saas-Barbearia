@@ -23,6 +23,8 @@ type ModoCliente = "cadastrado" | "rapido";
 
 type AgendamentoDrawerProps = {
   agendamento: Agendamento | null;
+  /** Na edição: todos os serviços do atendimento (mesmo grupo), em ordem. */
+  grupo?: Agendamento[];
   dataInicial: string;
   clientes: Cliente[];
   servicos: Servico[];
@@ -89,9 +91,10 @@ function formatarHoraLocal(datetimeLocal: string) {
 
 export default function AgendamentoDrawer({
   agendamento,
+  grupo,
   dataInicial,
   clientes,
-  servicos,
+  servicos: servicosAtivos,
   onClose,
   onSave,
 }: AgendamentoDrawerProps) {
@@ -99,6 +102,14 @@ export default function AgendamentoDrawer({
   const clienteRef = useRef<HTMLSelectElement>(null);
   const clienteRapidoRef = useRef<HTMLInputElement>(null);
   const ehEdicao = Boolean(agendamento);
+  const itensDoAtendimento = grupo?.length ? grupo : agendamento ? [agendamento] : [];
+  // Serviços que o atendimento já usa continuam escolhíveis mesmo se foram desativados depois
+  const servicos = [
+    ...servicosAtivos,
+    ...itensDoAtendimento
+      .map((item) => item.servico)
+      .filter((servico, i, todos) => !servicosAtivos.some((s) => s.id === servico.id) && todos.findIndex((s) => s.id === servico.id) === i),
+  ];
   const [modoCliente, setModoCliente] = useState<ModoCliente>(
     agendamento?.clienteId ? "cadastrado" : "rapido",
   );
@@ -106,13 +117,10 @@ export default function AgendamentoDrawer({
     clienteId: agendamento?.clienteId ?? "",
     clienteNome:
       agendamento?.clienteNome ?? agendamento?.cliente?.nome ?? "",
-    servicoIds:
-      agendamento &&
-      servicos.some((servico) => servico.id === agendamento.servicoId)
-        ? [agendamento.servicoId]
-        : [],
+    // Edição: já vem com todos os serviços do atendimento marcados, na ordem em que acontecem
+    servicoIds: itensDoAtendimento.map((item) => item.servicoId),
     inicio: agendamento
-      ? paraDatetimeLocal(agendamento.inicio)
+      ? paraDatetimeLocal((itensDoAtendimento[0] ?? agendamento).inicio)
       : inicioInicial(dataInicial),
     observacao: agendamento?.observacao ?? "",
   });
@@ -212,11 +220,9 @@ export default function AgendamentoDrawer({
 
   function alternarServico(id: string) {
     const selecionado = form.servicoIds.includes(id);
-    const proximos = ehEdicao
-      ? [id]
-      : selecionado
-        ? form.servicoIds.filter((atual) => atual !== id)
-        : [...form.servicoIds, id];
+    const proximos = selecionado
+      ? form.servicoIds.filter((atual) => atual !== id)
+      : [...form.servicoIds, id];
     atualizarCampo("servicoIds", proximos);
   }
 
@@ -273,7 +279,7 @@ export default function AgendamentoDrawer({
               </h2>
               <p className="mt-1 text-base leading-6 text-zinc-700">
                 {ehEdicao
-                  ? "Escolha o cliente, o serviço e um horário."
+                  ? "Ajuste o cliente, os serviços e o horário. Dá para acrescentar ou tirar serviços."
                   : "Escolha o cliente, um ou mais serviços e o horário."}
               </p>
             </div>
@@ -442,7 +448,7 @@ export default function AgendamentoDrawer({
 
             <div className="space-y-2">
               <p className="text-base font-semibold">
-                {ehEdicao ? "Serviço" : "Serviços"}
+                Serviços
               </p>
               <div
                 id="agendamento-servicoIds"
@@ -462,7 +468,7 @@ export default function AgendamentoDrawer({
                     >
                       <span className="flex items-center gap-2">
                         <input
-                          type={ehEdicao ? "radio" : "checkbox"}
+                          type="checkbox"
                           name="servicoIds"
                           checked={marcado}
                           onChange={() => alternarServico(servico.id)}
