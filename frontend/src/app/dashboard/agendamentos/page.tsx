@@ -160,30 +160,22 @@ function AcoesAgendamento({
   if (agendamento.importado && !podeEditarImportado) return null;
   const podeCancelar = !agendamento.importado && agendamento.status !== "CANCELADO";
 
+  // No celular as ações ficam num menu "⋯" para o card não estourar a largura da tela
+  if (mobile) {
+    return (
+      <MenuAcoesCelular
+        agendamento={agendamento}
+        nome={nome}
+        digitos={digitos}
+        podeCancelar={podeCancelar}
+        onEditar={onEditar}
+        onCancelar={onCancelar}
+      />
+    );
+  }
+
   return (
-    <div
-      className={`relative z-10 flex items-center gap-2 ${mobile ? "pointer-events-auto md:hidden" : "hidden justify-end md:flex"}`}
-    >
-      {mobile && digitos && (
-        <>
-          <a
-            href={`https://wa.me/55${digitos}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Conversar com ${nome} no WhatsApp`}
-            className={BOTAO_ICONICO}
-          >
-            <MessageCircle aria-hidden="true" size={20} />
-          </a>
-          <a
-            href={`tel:${digitos}`}
-            aria-label={`Ligar para ${nome}`}
-            className={BOTAO_ICONICO}
-          >
-            <Phone aria-hidden="true" size={20} />
-          </a>
-        </>
-      )}
+    <div className="relative z-10 hidden items-center justify-end gap-2 md:flex">
       <button
         type="button"
         onClick={(event) => {
@@ -195,48 +187,155 @@ function AcoesAgendamento({
       >
         <Pencil aria-hidden="true" size={20} />
       </button>
-      {mobile ? (
-        podeCancelar && (
-          <details
-            className="relative"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <summary
-              aria-label={`Mais ações para ${nome}`}
-              className={`${BOTAO_ICONICO} list-none [&::-webkit-details-marker]:hidden`}
-            >
-              <MoreVertical aria-hidden="true" size={20} />
-            </summary>
-            <div className="absolute right-0 bottom-full z-20 mb-2">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onCancelar(agendamento, event.currentTarget);
-                }}
-                className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-3 text-base font-semibold text-red-700 shadow-lg hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+      {!agendamento.importado && (
+        <button
+          type="button"
+          disabled={!podeCancelar}
+          onClick={(event) => {
+            event.stopPropagation();
+            onCancelar(agendamento, event.currentTarget);
+          }}
+          aria-label={`Cancelar agendamento de ${nome}`}
+          className={`${BOTAO_ICONICO} text-red-700 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40`}
+        >
+          <X aria-hidden="true" size={20} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** "Oi, João! Passando para confirmar seu horário de quinta-feira, 10/12 às 14:00 (Corte)…" */
+function mensagemConfirmacao(agendamento: Agendamento) {
+  const inicio = new Date(agendamento.inicio);
+  // Mesmo fuso da agenda na tela, para a mensagem bater com o que o dono está vendo
+  const dia = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(inicio);
+  const primeiroNome = nomeCliente(agendamento).trim().split(" ")[0];
+  return (
+    `Oi, ${primeiroNome}! Passando para confirmar seu horário de ${dia} às ` +
+    `${formatarHora(agendamento.inicio)} (${agendamento.servico.nome}). Podemos contar com você?`
+  );
+}
+
+const ITEM_MENU =
+  "flex min-h-11 w-full items-center gap-3 px-4 text-left text-base hover:bg-zinc-50 focus-visible:bg-zinc-100 focus-visible:outline-none";
+
+/**
+ * Ações do agendamento no celular: um botão "⋯" que abre um menu com os itens escritos
+ * (antes eram 4 ícones lado a lado, que empurravam o card para fora da tela).
+ */
+function MenuAcoesCelular({
+  agendamento,
+  nome,
+  digitos,
+  podeCancelar,
+  onEditar,
+  onCancelar,
+}: {
+  agendamento: Agendamento;
+  nome: string;
+  digitos: string;
+  podeCancelar: boolean;
+  onEditar: (agendamento: Agendamento, trigger: HTMLElement) => void;
+  onCancelar: (agendamento: Agendamento, trigger: HTMLElement) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const raiz = useRef<HTMLDivElement>(null);
+  const botao = useRef<HTMLButtonElement>(null);
+
+  // Fecha ao tocar fora ou apertar Esc
+  useEffect(() => {
+    if (!aberto) return;
+    function fora(event: PointerEvent) {
+      if (!raiz.current?.contains(event.target as Node)) setAberto(false);
+    }
+    function esc(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setAberto(false);
+      botao.current?.focus();
+    }
+    document.addEventListener("pointerdown", fora);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", fora);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aberto]);
+
+  function escolher(acao: (trigger: HTMLElement) => void) {
+    setAberto(false);
+    // O foco volta para o "⋯" quando a gaveta/confirmação fechar
+    if (botao.current) acao(botao.current);
+  }
+
+  return (
+    <div
+      ref={raiz}
+      // Aberto, fica acima dos cards de baixo
+      className={`pointer-events-auto relative md:hidden ${aberto ? "z-30" : "z-10"}`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        ref={botao}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        aria-label={`Ações para ${nome}`}
+        onClick={() => setAberto((atual) => !atual)}
+        className={BOTAO_ICONICO}
+      >
+        <MoreVertical aria-hidden="true" size={20} />
+      </button>
+      {aberto && (
+        <div
+          role="menu"
+          aria-label={`Ações para ${nome}`}
+          className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+        >
+          {digitos && (
+            <>
+              <a
+                role="menuitem"
+                href={`https://wa.me/55${digitos}?text=${encodeURIComponent(mensagemConfirmacao(agendamento))}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setAberto(false)}
+                className={ITEM_MENU}
               >
-                <X aria-hidden="true" size={16} />
-                Cancelar agendamento
-              </button>
-            </div>
-          </details>
-        )
-      ) : (
-        !agendamento.importado && (
+                <MessageCircle aria-hidden="true" size={20} className="text-green-700" />
+                Confirmar pelo WhatsApp
+              </a>
+              <a role="menuitem" href={`tel:${digitos}`} onClick={() => setAberto(false)} className={ITEM_MENU}>
+                <Phone aria-hidden="true" size={20} />
+                Ligar
+              </a>
+            </>
+          )}
           <button
+            role="menuitem"
             type="button"
-            disabled={!podeCancelar}
-            onClick={(event) => {
-              event.stopPropagation();
-              onCancelar(agendamento, event.currentTarget);
-            }}
-            aria-label={`Cancelar agendamento de ${nome}`}
-            className={`${BOTAO_ICONICO} text-red-700 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40`}
+            onClick={() => escolher((trigger) => onEditar(agendamento, trigger))}
+            className={ITEM_MENU}
           >
-            <X aria-hidden="true" size={20} />
+            <Pencil aria-hidden="true" size={20} />
+            Editar
           </button>
-        )
+          {podeCancelar && (
+            <button
+              role="menuitem"
+              type="button"
+              onClick={() => escolher((trigger) => onCancelar(agendamento, trigger))}
+              className={`${ITEM_MENU} border-t border-zinc-200 font-semibold text-red-700 hover:bg-red-50`}
+            >
+              <X aria-hidden="true" size={20} />
+              Cancelar agendamento
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
