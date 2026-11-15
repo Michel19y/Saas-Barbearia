@@ -1,5 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type { Atendimento, Cliente, Servico } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { UpdateAtendimentoDto } from './dto/update-atendimento.dto.js';
 
 const MS_POR_MINUTO = 60_000;
 const LIMITE_LISTAGEM = 200;
@@ -64,6 +66,55 @@ function lerData(valor: string | undefined, campo: string) {
   return data;
 }
 
+type AtendimentoCompleto = Atendimento & { cliente: Cliente | null; servico: Servico };
+
+/**
+ * Atendimento importado no formato da lista de agendamentos. O preço mostrado é o valor
+ * realmente pago, não o preço atual do serviço; `importacao` traz os campos editáveis crus.
+ */
+function paraItemDaAgenda(a: AtendimentoCompleto) {
+  return {
+    id: `${PREFIXO_ID_IMPORTADO}${a.id}`,
+    importado: true,
+    importacao: {
+      atendimentoId: a.id,
+      profissionalNome: a.profissionalNome,
+      formaPagamento: a.formaPagamento,
+      valorCentavos: a.valorCentavos,
+    },
+    clienteId: a.clienteId,
+    clienteNome: a.clienteNome,
+    cliente: a.cliente,
+    servicoId: a.servicoId,
+    servico: { ...a.servico, precoCentavos: a.valorCentavos },
+    inicio: a.data,
+    fim: new Date(a.data.getTime() + a.servico.duracaoMin * MS_POR_MINUTO),
+    status: 'CONCLUIDO' as const,
+    observacao: [
+      'Importado da planilha',
+      a.profissionalNome && `Profissional: ${a.profissionalNome}`,
+      a.formaPagamento,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    grupoId: null,
+  };
+}
+
+/**
+ * Cliente cadastrado (usa o nome do cadastro) ou só um nome, sem cadastro (clienteId null).
+ * Sem nenhum dos dois no pedido, não mexe no cliente.
+ */
+function dadosDoCliente(dto: UpdateAtendimentoDto, nomeDoCadastro: string | undefined) {
+  if (dto.clienteId) return { clienteId: dto.clienteId, clienteNome: nomeDoCadastro };
+  if (dto.clienteId === null) {
+    const nome = dto.clienteNome?.trim();
+    if (!nome) throw new BadRequestException('Informe o nome do cliente');
+    return { clienteId: null, clienteNome: nome };
+  }
+  return {};
+}
+
 @Injectable()
 export class AtendimentosService {
   constructor(private readonly prisma: PrismaService) {}
@@ -88,26 +139,56 @@ export class AtendimentosService {
       include: { cliente: true, servico: true },
       orderBy: { data: 'asc' },
     });
-    return atendimentos.map((a) => ({
-      id: `${PREFIXO_ID_IMPORTADO}${a.id}`,
-      importado: true,
-      clienteId: a.clienteId,
-      clienteNome: a.clienteNome,
-      cliente: a.cliente,
-      servicoId: a.servicoId,
-      servico: { ...a.servico, precoCentavos: a.valorCentavos },
-      inicio: a.data,
-      fim: new Date(a.data.getTime() + a.servico.duracaoMin * MS_POR_MINUTO),
-      status: 'CONCLUIDO' as const,
-      observacao: [
-        'Importado da planilha',
-        a.profissionalNome && `Profissional: ${a.profissionalNome}`,
-        a.formaPagamento,
-      ]
-        .filter(Boolean)
-        .join(' · '),
-      grupoId: null,
-    }));
+    return atendimentos.map(paraItemDaAgenda);
+  }
+
+  /** Atendimento importado da barbearia; recusa os que vieram de um agendamento. */
+  private async buscarImportado(barbeariaId: string, id: string) {
+    const atendimento = await this.prisma.atendimento.findUnique({ where: { id } });
+    if (!atendimento || atendimento.barbeariaId !== barbeariaId) {
+      throw new NotFoundException('Atendimento não encontrado');
+    }
+    if (atendimento.agendamentoId) {
+      throw new BadRequestException(
+        'Esse atendimento veio de um agendamento; corrija pelo próprio agendamento',
+      );
+    }
+    return atendimento;
+  }
+
+  /** Corrige um atendimento importado (reflete na agenda e no Financeiro). */
+  async atualizarImportado(barbeariaId: string, id: string, dto: UpdateAtendimentoDto) {
+    const atual = await this.buscarImportado(barbeariaId, id);
+    const [cliente, servico] = await Promise.all([
+      dto.clienteId ? this.prisma.cliente.findUnique({ where: { id: dto.clienteId } }) : null,
+      dto.servicoId ? this.prisma.servico.findUnique({ where: { id: dto.servicoId } }) : null,
+    ]);
+    if (dto.clienteId && cliente?.barbeariaId !== barbeariaId) {
+      throw new NotFoundException('Cliente não encontrado');
+    }
+    if (dto.servicoId && servico?.barbeariaId !== barbeariaId) {
+      throw new NotFoundException('Serviço não encontrado');
+    }
+
+    const atualizado = await this.prisma.atendimento.update({
+      where: { id: atual.id },
+      data: {
+        ...dadosDoCliente(dto, cliente?.nome),
+        servicoId: dto.servicoId,
+        data: dto.data ? new Date(dto.data) : undefined,
+        valorCentavos: dto.valorCentavos,
+        formaPagamento: dto.formaPagamento?.trim(),
+        profissionalNome: dto.profissionalNome === undefined ? undefined : dto.profissionalNome.trim() || null,
+      },
+      include: { cliente: true, servico: true },
+    });
+    return paraItemDaAgenda(atualizado);
+  }
+
+  /** Apaga um atendimento importado (ex.: linha errada ou importada em dobro). */
+  async excluirImportado(barbeariaId: string, id: string) {
+    const atual = await this.buscarImportado(barbeariaId, id);
+    await this.prisma.atendimento.delete({ where: { id: atual.id } });
   }
 
   // O recorte do período vem pronto do cliente (já no fuso de quem está olhando),

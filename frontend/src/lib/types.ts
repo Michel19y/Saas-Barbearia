@@ -32,8 +32,15 @@ export type Agendamento = {
   cliente: Cliente | null;
   servico: Servico;
   grupoId: string | null;
-  /** Veio da importação de planilha: histórico, só leitura (sem editar, cancelar ou mudar status). */
+  /** Veio da importação de planilha: histórico, já concluído (sem cancelar ou mudar status). */
   importado?: boolean;
+  /** Campos crus do atendimento importado, para o painel de correção. */
+  importacao?: {
+    atendimentoId: string;
+    profissionalNome: string | null;
+    formaPagamento: string;
+    valorCentavos: number;
+  };
 };
 
 export type LinhaResumo = {

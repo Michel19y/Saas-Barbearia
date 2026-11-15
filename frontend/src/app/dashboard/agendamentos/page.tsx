@@ -21,7 +21,10 @@ import FormaPagamentoDialog, {
   type PagamentoSelecionado,
 } from "@/components/FormaPagamentoDialog";
 import Toast from "@/components/Toast";
-import { authFetch } from "@/lib/auth";
+import AtendimentoImportadoDrawer, {
+  type CorrecaoAtendimento,
+} from "@/components/AtendimentoImportadoDrawer";
+import { authFetch, decodeToken, getToken } from "@/lib/auth";
 import type {
   Agendamento,
   Cliente,
@@ -141,17 +144,21 @@ function AcoesAgendamento({
   onEditar,
   onCancelar,
   mobile = false,
+  podeEditarImportado = false,
 }: {
   agendamento: Agendamento;
   onEditar: (agendamento: Agendamento, trigger: HTMLElement) => void;
   onCancelar: (agendamento: Agendamento, trigger: HTMLElement) => void;
   mobile?: boolean;
+  /** Só o dono corrige o histórico importado (mexe no faturamento). */
+  podeEditarImportado?: boolean;
 }) {
   const nome = nomeCliente(agendamento);
   const digitos = somenteDigitos(agendamento.cliente?.telefone ?? "");
 
-  // Histórico importado não se edita nem se cancela pela agenda
-  if (agendamento.importado) return null;
+  // Histórico importado: o dono pode corrigir, mas ninguém cancela (já aconteceu)
+  if (agendamento.importado && !podeEditarImportado) return null;
+  const podeCancelar = !agendamento.importado && agendamento.status !== "CANCELADO";
 
   return (
     <div
@@ -189,7 +196,7 @@ function AcoesAgendamento({
         <Pencil aria-hidden="true" size={20} />
       </button>
       {mobile ? (
-        agendamento.status !== "CANCELADO" && (
+        podeCancelar && (
           <details
             className="relative"
             onClick={(event) => event.stopPropagation()}
@@ -216,18 +223,20 @@ function AcoesAgendamento({
           </details>
         )
       ) : (
-        <button
-          type="button"
-          disabled={agendamento.status === "CANCELADO"}
-          onClick={(event) => {
-            event.stopPropagation();
-            onCancelar(agendamento, event.currentTarget);
-          }}
-          aria-label={`Cancelar agendamento de ${nome}`}
-          className={`${BOTAO_ICONICO} text-red-700 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40`}
-        >
-          <X aria-hidden="true" size={20} />
-        </button>
+        !agendamento.importado && (
+          <button
+            type="button"
+            disabled={!podeCancelar}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCancelar(agendamento, event.currentTarget);
+            }}
+            aria-label={`Cancelar agendamento de ${nome}`}
+            className={`${BOTAO_ICONICO} text-red-700 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-40`}
+          >
+            <X aria-hidden="true" size={20} />
+          </button>
+        )
       )}
     </div>
   );
@@ -247,6 +256,8 @@ export default function AgendamentosPage() {
   const [drawer, setDrawer] = useState<Agendamento | null | undefined>(
     undefined,
   );
+  const [ehDono, setEhDono] = useState(false);
+  const [importadoEmEdicao, setImportadoEmEdicao] = useState<Agendamento | null>(null);
   const [agendamentoParaCancelar, setAgendamentoParaCancelar] =
     useState<Agendamento | null>(null);
   const [agendamentoParaConcluir, setAgendamentoParaConcluir] =
@@ -303,6 +314,7 @@ export default function AgendamentosPage() {
     queueMicrotask(() => {
       if (ativo) {
         setDiaSelecionado(hojeLocal());
+        setEhDono(decodeToken(getToken() ?? "")?.papel === "DONO");
         void carregar();
       }
     });
@@ -397,6 +409,16 @@ export default function AgendamentosPage() {
     }
     return ordem.map((chave) => mapa.get(chave)!);
   }
+  /** Nomes de profissionais já usados no histórico, para sugerir no painel de correção. */
+  const profissionaisDoHistorico = useMemo(
+    () =>
+      [
+        ...new Set(
+          agendamentos.flatMap((item) => item.importacao?.profissionalNome ?? []),
+        ),
+      ].sort(),
+    [agendamentos],
+  );
   const servicosAtivos = useMemo(
     () => servicos.filter((servico) => servico.ativo),
     [servicos],
@@ -420,12 +442,45 @@ export default function AgendamentosPage() {
     trigger?: HTMLElement | null,
   ) {
     registrarFoco(trigger);
+    if (agendamento?.importado) {
+      if (ehDono) setImportadoEmEdicao(agendamento);
+      return;
+    }
     setDrawer(agendamento);
   }
 
   function fecharDrawer() {
     setDrawer(undefined);
     devolverFoco();
+  }
+
+  function fecharImportado() {
+    setImportadoEmEdicao(null);
+    devolverFoco();
+  }
+
+  /** Corrige o atendimento importado e troca o item na lista (agenda e Financeiro já refletem). */
+  async function salvarImportado(correcao: CorrecaoAtendimento) {
+    const alvo = importadoEmEdicao?.importacao;
+    if (!alvo) return;
+    const atualizado = (await authFetch(`/atendimentos/${alvo.atendimentoId}`, {
+      method: "PATCH",
+      body: JSON.stringify(correcao),
+    })) as Agendamento;
+    setAgendamentos((atuais) =>
+      atuais.map((item) => (item.id === atualizado.id ? atualizado : item)),
+    );
+    setToast(`Atendimento de ${nomeCliente(atualizado)} corrigido`);
+    fecharImportado();
+  }
+
+  async function excluirImportado() {
+    const alvo = importadoEmEdicao;
+    if (!alvo?.importacao) return;
+    await authFetch(`/atendimentos/${alvo.importacao.atendimentoId}`, { method: "DELETE" });
+    setAgendamentos((atuais) => atuais.filter((item) => item.id !== alvo.id));
+    setToast(`Atendimento de ${nomeCliente(alvo)} excluído`);
+    fecharImportado();
   }
 
   function abrirConfirmacao(
@@ -831,7 +886,7 @@ export default function AgendamentosPage() {
                           key={primeiro.grupoId ?? primeiro.id}
                           className={`relative rounded-lg border p-4 transition-colors motion-reduce:transition-none ${destacado ? "border-green-700 bg-green-50" : "border-zinc-200 bg-white"}`}
                         >
-                          {subgrupo.length === 1 && !primeiro.importado && (
+                          {subgrupo.length === 1 && (!primeiro.importado || ehDono) && (
                             <button
                               type="button"
                               onClick={(event) =>
@@ -894,6 +949,7 @@ export default function AgendamentosPage() {
                                 }
                               />
                               <AcoesAgendamento
+                                podeEditarImportado={ehDono}
                                 mobile
                                 agendamento={primeiro}
                                 onEditar={(alvo, trigger) =>
@@ -960,6 +1016,7 @@ export default function AgendamentosPage() {
                                         }
                                       />
                                       <AcoesAgendamento
+                                        podeEditarImportado={ehDono}
                                         mobile
                                         agendamento={agendamento}
                                         onEditar={(alvo, trigger) =>
@@ -1136,6 +1193,7 @@ export default function AgendamentosPage() {
                                   </button>
                                 )}
                               <AcoesAgendamento
+                                podeEditarImportado={ehDono}
                                 agendamento={agendamento}
                                 onEditar={(alvo, trigger) =>
                                   abrirDrawer(alvo, trigger)
@@ -1194,6 +1252,19 @@ export default function AgendamentosPage() {
           servicos={servicosAtivos}
           onClose={fecharDrawer}
           onSave={salvarAgendamento}
+        />
+      )}
+
+      {importadoEmEdicao && (
+        <AtendimentoImportadoDrawer
+          key={importadoEmEdicao.id}
+          atendimento={importadoEmEdicao}
+          clientes={clientes}
+          servicos={servicos}
+          profissionais={profissionaisDoHistorico}
+          onClose={fecharImportado}
+          onSave={salvarImportado}
+          onExcluir={excluirImportado}
         />
       )}
 
