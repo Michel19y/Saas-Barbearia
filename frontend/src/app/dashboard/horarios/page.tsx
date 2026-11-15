@@ -61,10 +61,25 @@ type ErroComAfetados = Error & { dados?: { afetados?: Afetado[] } };
 
 const primeiraMaiuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
 
+const DUAS_CASAS = 2;
+const HORAS_DO_DIA = 24;
+const MINUTOS_NA_HORA = 60;
+/** Minutos de 5 em 5: suficiente para a agenda, que trabalha em blocos de 30 min. */
+const PASSO_MINUTOS = 5;
 /**
- * Campo de hora com rótulo em cima. No Android o campo de hora tem uma largura mínima
- * própria (com a setinha) e não encolhe; por isso cada campo tem esse mínimo e, se os dois
- * não couberem lado a lado, o segundo desce para a linha de baixo em vez de vazar do card.
+ * Seletor estreito de hora/minuto: a setinha fica a 0,75rem da borda e o texto não encosta nela.
+ * Inline porque o .campo-select (globals.css) fixa um respiro maior, pensado para seletores largos.
+ */
+const ESTILO_SELETOR_CURTO = { paddingRight: "2.25rem", backgroundPosition: "right 0.75rem center" };
+const comZero = (n: number) => String(n).padStart(DUAS_CASAS, "0");
+const OPCOES_HORA = Array.from({ length: HORAS_DO_DIA }, (_, h) => comZero(h));
+const OPCOES_MINUTO = Array.from({ length: MINUTOS_NA_HORA / PASSO_MINUTOS }, (_, i) => comZero(i * PASSO_MINUTOS));
+
+/**
+ * Campo de hora: duas listas (hora e minuto) no estilo dos seletores do app.
+ * Não usa o relógio nativo do celular (input type="time"): no Android ele abre uma janela
+ * do sistema que o site não consegue ajustar (com botão cortado na borda) e tem largura
+ * mínima própria que vazava do card. Valor continua no formato "HH:MM".
  */
 function CampoHora({
   id,
@@ -82,20 +97,55 @@ function CampoHora({
   desabilitado?: boolean;
   onChange: (valor: string) => void;
 }) {
+  const [hora = "", minuto = ""] = valor.split(":");
+  // Um minuto fora do passo (ex.: 12:07 vindo de antes) continua aparecendo e escolhível
+  const minutos = minuto && !OPCOES_MINUTO.includes(minuto) ? [...OPCOES_MINUTO, minuto].sort() : OPCOES_MINUTO;
+  const nome = descricao ?? rotulo;
+  const seletor = `${CAMPO} campo-select w-full min-w-0 flex-1 tabular-nums`;
+
   return (
-    <label htmlFor={id} className="flex min-w-[10.5rem] flex-1 flex-col gap-1">
-      <span className="text-sm font-medium text-zinc-700">{rotulo}</span>
-      <input
-        id={id}
-        type="time"
-        value={valor}
-        disabled={desabilitado}
-        aria-label={descricao}
-        onChange={(e) => onChange(e.target.value)}
-        // pr-4: a setinha do Android não fica colada na borda
-        className={`${CAMPO} w-full max-w-full pr-4 tabular-nums`}
-      />
-    </label>
+    <div role="group" aria-label={nome} className="flex min-w-[9.5rem] flex-1 flex-col gap-1">
+      <label htmlFor={id} className="text-sm font-medium text-zinc-700">
+        {rotulo}
+      </label>
+      <div className="flex items-center gap-1">
+        <select
+          id={id}
+          value={hora}
+          disabled={desabilitado}
+          aria-label={`${nome}: hora`}
+          onChange={(e) => onChange(`${e.target.value}:${minuto || "00"}`)}
+          className={seletor}
+          style={ESTILO_SELETOR_CURTO}
+        >
+          {!hora && <option value="">--</option>}
+          {OPCOES_HORA.map((h) => (
+            <option key={h} value={h}>
+              {h}
+            </option>
+          ))}
+        </select>
+        <span aria-hidden="true" className="font-semibold">
+          :
+        </span>
+        <select
+          id={`${id}-minuto`}
+          value={minuto}
+          disabled={desabilitado}
+          aria-label={`${nome}: minuto`}
+          onChange={(e) => onChange(`${hora || "00"}:${e.target.value}`)}
+          className={seletor}
+          style={ESTILO_SELETOR_CURTO}
+        >
+          {!minuto && <option value="">--</option>}
+          {minutos.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
   );
 }
 
