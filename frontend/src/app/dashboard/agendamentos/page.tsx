@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   CalendarClock,
@@ -221,6 +222,12 @@ function mensagemConfirmacao(agendamento: Agendamento) {
   );
 }
 
+/** Posição fixa do menu na tela: alinhado à direita do "⋯", abaixo (topo) ou acima (base) dele. */
+type PosicaoMenu = { direita: number; topo?: number; base?: number };
+const ESPACO_MENU = 8;
+/** 4 itens de 44 px + margem; se não couber abaixo do "⋯", o menu abre para cima. */
+const ALTURA_MAXIMA_MENU = 192;
+
 const ITEM_MENU =
   "flex min-h-11 w-full items-center gap-3 px-4 text-left text-base hover:bg-zinc-50 focus-visible:bg-zinc-100 focus-visible:outline-none";
 
@@ -243,31 +250,59 @@ function MenuAcoesCelular({
   onEditar: (agendamento: Agendamento, trigger: HTMLElement) => void;
   onCancelar: (agendamento: Agendamento, trigger: HTMLElement) => void;
 }) {
-  const [aberto, setAberto] = useState(false);
+  // Onde o menu aparece na tela (null = fechado)
+  const [posicao, setPosicao] = useState<PosicaoMenu | null>(null);
+  const aberto = posicao !== null;
   const raiz = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const botao = useRef<HTMLButtonElement>(null);
 
-  // Fecha ao tocar fora ou apertar Esc
+  // Fecha ao tocar fora, apertar Esc, rolar a tela ou girar o celular
   useEffect(() => {
     if (!aberto) return;
+    const fechar = () => setPosicao(null);
     function fora(event: PointerEvent) {
-      if (!raiz.current?.contains(event.target as Node)) setAberto(false);
+      const alvo = event.target as Node;
+      if (!raiz.current?.contains(alvo) && !menu.current?.contains(alvo)) fechar();
     }
     function esc(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
-      setAberto(false);
+      fechar();
       botao.current?.focus();
     }
     document.addEventListener("pointerdown", fora);
     document.addEventListener("keydown", esc);
+    window.addEventListener("scroll", fechar, { capture: true, passive: true });
+    window.addEventListener("resize", fechar);
     return () => {
       document.removeEventListener("pointerdown", fora);
       document.removeEventListener("keydown", esc);
+      window.removeEventListener("scroll", fechar, { capture: true });
+      window.removeEventListener("resize", fechar);
     };
   }, [aberto]);
 
+  /**
+   * O menu é desenhado fora dos cards (no fim da página) para nunca ficar atrás do card
+   * de baixo; fica alinhado ao "⋯" e abre para cima quando não cabe embaixo.
+   */
+  function alternar() {
+    if (aberto || !botao.current) {
+      setPosicao(null);
+      return;
+    }
+    const r = botao.current.getBoundingClientRect();
+    const direita = window.innerWidth - r.right;
+    const cabeEmbaixo = r.bottom + ESPACO_MENU + ALTURA_MAXIMA_MENU <= window.innerHeight;
+    setPosicao(
+      cabeEmbaixo
+        ? { direita, topo: r.bottom + ESPACO_MENU }
+        : { direita, base: window.innerHeight - r.top + ESPACO_MENU },
+    );
+  }
+
   function escolher(acao: (trigger: HTMLElement) => void) {
-    setAberto(false);
+    setPosicao(null);
     // O foco volta para o "⋯" quando a gaveta/confirmação fechar
     if (botao.current) acao(botao.current);
   }
@@ -275,8 +310,7 @@ function MenuAcoesCelular({
   return (
     <div
       ref={raiz}
-      // Aberto, fica acima dos cards de baixo
-      className={`pointer-events-auto relative md:hidden ${aberto ? "z-30" : "z-10"}`}
+      className="pointer-events-auto relative z-10 md:hidden"
       onClick={(event) => event.stopPropagation()}
     >
       <button
@@ -285,16 +319,19 @@ function MenuAcoesCelular({
         aria-haspopup="menu"
         aria-expanded={aberto}
         aria-label={`Ações para ${nome}`}
-        onClick={() => setAberto((atual) => !atual)}
+        onClick={alternar}
         className={BOTAO_ICONICO}
       >
         <MoreVertical aria-hidden="true" size={20} />
       </button>
-      {aberto && (
+      {posicao &&
+        createPortal(
         <div
+          ref={menu}
           role="menu"
           aria-label={`Ações para ${nome}`}
-          className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+          style={{ position: "fixed", right: posicao.direita, top: posicao.topo, bottom: posicao.base }}
+          className="z-50 w-64 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
         >
           {digitos && (
             <>
@@ -303,13 +340,13 @@ function MenuAcoesCelular({
                 href={`https://wa.me/55${digitos}?text=${encodeURIComponent(mensagemConfirmacao(agendamento))}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => setAberto(false)}
+                onClick={() => setPosicao(null)}
                 className={ITEM_MENU}
               >
                 <MessageCircle aria-hidden="true" size={20} className="text-green-700" />
                 Confirmar pelo WhatsApp
               </a>
-              <a role="menuitem" href={`tel:${digitos}`} onClick={() => setAberto(false)} className={ITEM_MENU}>
+              <a role="menuitem" href={`tel:${digitos}`} onClick={() => setPosicao(null)} className={ITEM_MENU}>
                 <Phone aria-hidden="true" size={20} />
                 Ligar
               </a>
@@ -335,7 +372,8 @@ function MenuAcoesCelular({
               Cancelar agendamento
             </button>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
