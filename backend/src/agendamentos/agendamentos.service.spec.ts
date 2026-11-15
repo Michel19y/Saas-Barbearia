@@ -28,6 +28,7 @@ describe('AgendamentosService.update', () => {
   let transaction: {
     agendamento: {
       update: ReturnType<typeof vi.fn>;
+      create: ReturnType<typeof vi.fn>;
     };
     atendimento: {
       upsert: ReturnType<typeof vi.fn>;
@@ -52,6 +53,8 @@ describe('AgendamentosService.update', () => {
   beforeEach(async () => {
     transaction = {
       agendamento: {
+        // Criar dentro da transação usa o mesmo mock de create do prisma (os testes conferem nele)
+        create: vi.fn((...args: unknown[]) => (prisma.agendamento.create as (...a: unknown[]) => unknown)(...args)),
         update: vi.fn().mockResolvedValue({
           ...existente,
           status: 'CONCLUIDO',

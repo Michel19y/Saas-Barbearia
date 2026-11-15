@@ -10,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateAgendamentoDto } from './dto/create-agendamento.dto.js';
 import { UpdateAgendamentoDto } from './dto/update-agendamento.dto.js';
 import { EditarServicosDto } from './dto/editar-servicos.dto.js';
+import { comTravaDeHorario } from '../common/trava-horario.js';
+import { emSequencia } from '../common/sequencia-servicos.js';
 
 const MS_POR_MINUTO = 60_000;
 
@@ -49,29 +51,27 @@ export class AgendamentosService {
     await this.verificarConflito(profissionalId, inicio, fimTotal);
 
     const grupoId = servicos.length > 1 ? randomUUID() : null;
-    const criados = [];
-    let cursor = inicio;
-    for (const servico of servicos) {
-      const fimServico = new Date(cursor.getTime() + servico.duracaoMin * 60000);
-      const agendamento = await this.prisma.agendamento.create({
-        data: {
-          barbeariaId,
-          clienteId: cliente?.id ?? null,
-          clienteNome,
-          servicoId: servico.id,
-          profissionalId,
-          inicio: cursor,
-          fim: fimServico,
-          observacao: dto.observacao,
-          grupoId,
-        },
-        include: { cliente: true, servico: true },
-      });
-      criados.push(agendamento);
-      cursor = fimServico;
-    }
-
-    return criados;
+    const blocos = emSequencia(servicos, inicio);
+    return comTravaDeHorario(() =>
+      this.prisma.$transaction((tx) =>
+        Promise.all(
+          blocos.map((bloco) =>
+            tx.agendamento.create({
+              data: {
+                barbeariaId,
+                clienteId: cliente?.id ?? null,
+                clienteNome,
+                profissionalId,
+                ...bloco,
+                observacao: dto.observacao,
+                grupoId,
+              },
+              include: { cliente: true, servico: true },
+            }),
+          ),
+        ),
+      ),
+    );
   }
 
   findAll(barbeariaId: string) {
@@ -177,7 +177,7 @@ export class AgendamentosService {
       data.fim = fim;
     }
 
-    return this.prisma.$transaction(async (transaction) => {
+    return comTravaDeHorario(() => this.prisma.$transaction(async (transaction) => {
       const atualizado = await transaction.agendamento.update({
         where: { id },
         data,
@@ -210,7 +210,7 @@ export class AgendamentosService {
       }
 
       return atualizado;
-    });
+    }));
   }
 
   async remove(barbeariaId: string, id: string) {
@@ -275,7 +275,7 @@ export class AgendamentosService {
       ...(dto.observacao !== undefined ? { observacao: dto.observacao.trim() || null } : {}),
     };
 
-    const ids = await this.prisma.$transaction(async (tx) => {
+    const ids = await comTravaDeHorario(() => this.prisma.$transaction(async (tx) => {
       const sobrando = grupo.slice(blocos.length).map((item) => item.id);
       if (sobrando.length > 0) await tx.agendamento.deleteMany({ where: { id: { in: sobrando } } });
       const salvos = await Promise.all(
@@ -297,7 +297,7 @@ export class AgendamentosService {
         ),
       );
       return salvos.map((item) => item.id);
-    });
+    }));
 
     return this.prisma.agendamento.findMany({
       where: { id: { in: ids } },

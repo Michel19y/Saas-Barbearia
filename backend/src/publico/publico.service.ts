@@ -2,6 +2,8 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { barbeariaPorSlug } from '../common/slug-barbearia.js';
+import { comTravaDeHorario } from '../common/trava-horario.js';
+import { emSequencia } from '../common/sequencia-servicos.js';
 import { HorariosService } from '../horarios/horarios.service.js';
 import {
   FORMATO_DATA,
@@ -238,29 +240,28 @@ export class PublicoService {
     }
 
     const grupoId = servicos.length > 1 ? randomUUID() : null;
-    const criados = [];
-    let cursor = inicio;
-    for (const servico of servicos) {
-      const fimServico = new Date(cursor.getTime() + servico.duracaoMin * MS_POR_MINUTO);
-      const agendamento = await this.prisma.agendamento.create({
-        data: {
-          barbeariaId: barbearia.id,
-          clienteId: cliente.id,
-          clienteNome: cliente.nome,
-          profissionalId: escolhido.id,
-          servicoId: servico.id,
-          inicio: cursor,
-          fim: fimServico,
-          status: 'PENDENTE',
-          grupoId,
-        },
-        include: { servico: true, profissional: { select: { nome: true } } },
-      });
-      criados.push(agendamento);
-      cursor = fimServico;
-    }
-
-    return criados;
+    const blocos = emSequencia(servicos, inicio);
+    // Tudo ou nada; e se outro cliente pegou o horário no mesmo instante, a trava do banco recusa
+    return comTravaDeHorario(() =>
+      this.prisma.$transaction((tx) =>
+        Promise.all(
+          blocos.map((bloco) =>
+            tx.agendamento.create({
+              data: {
+                barbeariaId: barbearia.id,
+                clienteId: cliente.id,
+                clienteNome: cliente.nome,
+                profissionalId: escolhido.id,
+                ...bloco,
+                status: 'PENDENTE',
+                grupoId,
+              },
+              include: { servico: true, profissional: { select: { nome: true } } },
+            }),
+          ),
+        ),
+      ),
+    );
   }
 
   private estaLivre(

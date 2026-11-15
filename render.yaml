@@ -6,6 +6,8 @@ services:
     dockerContext: .
     plan: free
     healthCheckPath: /api
+    # Só publica depois que os testes do GitHub (.github/workflows/testes.yml) passarem
+    autoDeployTrigger: checksPass
     envVars:
       - key: DATABASE_URL
         sync: false

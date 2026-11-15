@@ -33,7 +33,7 @@ describe('ImportacoesService', () => {
   const banco = {
     cliente: { findMany: vi.fn(), createManyAndReturn: vi.fn() },
     servico: { findMany: vi.fn(), createManyAndReturn: vi.fn() },
-    atendimento: { createMany: vi.fn() },
+    atendimento: { createMany: vi.fn(), findMany: vi.fn() },
   };
   const prisma = {
     ...banco,
@@ -53,6 +53,8 @@ describe('ImportacoesService', () => {
     banco.servico.createManyAndReturn.mockImplementation(({ data }) =>
       Promise.resolve(data.map((s: { nome: string }) => ({ id: `s-${s.nome}`, nome: s.nome }))),
     );
+    // Nenhum atendimento importado antes, salvo nos testes de duplicidade
+    banco.atendimento.findMany.mockResolvedValue([]);
     banco.atendimento.createMany.mockImplementation(({ data }) => Promise.resolve({ count: data.length }));
 
     const module: TestingModule = await Test.createTestingModule({
@@ -125,6 +127,58 @@ describe('ImportacoesService', () => {
       const resultado = await service.importarPlanilha(BARBEARIA, 'u1', { planilha: 'link' });
 
       expect(resultado).toMatchObject({ clientesCriados: 0, servicosCriados: 0, atendimentosCriados: 0 });
+      expect(banco.atendimento.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('sem duplicar', () => {
+    /** O João das 09:00 de 10/11 com a Ana (Corte) já está no histórico. */
+    const JA_IMPORTADO = {
+      data: new Date('2026-11-10T09:00:00-03:00'),
+      clienteNome: 'joão',
+      profissionalNome: 'ANA',
+      servico: { nome: 'Corte' },
+    };
+
+    it('reimportar a mesma planilha pula o que já existe (sem diferenciar maiúsculas)', async () => {
+      banco.atendimento.findMany.mockResolvedValue([JA_IMPORTADO]);
+
+      const previa = await service.previaPlanilha(BARBEARIA, 'u1', { planilha: 'link' });
+      const resultado = await service.importarPlanilha(BARBEARIA, 'u1', { planilha: 'link' });
+
+      expect(previa.resumo).toMatchObject({ atendimentos: 1, jaImportados: 1 });
+      expect(resultado).toMatchObject({ atendimentosCriados: 1, jaImportados: 1 });
+      expect(banco.atendimento.createMany.mock.calls[0][0].data.map((a: { clienteNome: string }) => a.clienteNome)).toEqual([
+        'Pedro',
+      ]);
+      expect(resultado.avisos[0]).toBe('1 atendimento(s) já tinham sido importados antes e foram pulados');
+    });
+
+    it('a busca do histórico fica limitada à barbearia e ao período da planilha', async () => {
+      await service.previaPlanilha(BARBEARIA, 'u1', { planilha: 'link' });
+      const { where } = banco.atendimento.findMany.mock.calls[0][0];
+      expect(where.barbeariaId).toBe(BARBEARIA);
+      expect(where.data.gte.toISOString()).toBe('2026-11-10T12:00:00.000Z');
+      expect(where.data.lte.toISOString()).toBe('2026-11-10T13:00:00.000Z');
+    });
+
+    it('linha repetida dentro da própria planilha entra uma vez só', async () => {
+      google.lerTodasAbas.mockResolvedValue([
+        { titulo: '10-11-2026', linhas: [['Ana'], CABECALHO, ['09:00', 'Corte', 'João', '45', 'P'], ['09:00', 'Corte', 'João', '45', 'P']] },
+      ]);
+
+      const resultado = await service.importarPlanilha(BARBEARIA, 'u1', { planilha: 'link' });
+      expect(resultado).toMatchObject({ atendimentosCriados: 1, jaImportados: 1 });
+    });
+
+    it('tudo já importado: não grava nada e avisa', async () => {
+      google.lerTodasAbas.mockResolvedValue([
+        { titulo: '10-11-2026', linhas: [['Ana'], CABECALHO, ['09:00', 'Corte', 'João', '45', 'P']] },
+      ]);
+      banco.atendimento.findMany.mockResolvedValue([JA_IMPORTADO]);
+
+      const resultado = await service.importarPlanilha(BARBEARIA, 'u1', { planilha: 'link' });
+      expect(resultado).toMatchObject({ atendimentosCriados: 0, jaImportados: 1 });
       expect(banco.atendimento.createMany).not.toHaveBeenCalled();
     });
   });

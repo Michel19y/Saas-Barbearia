@@ -48,8 +48,9 @@ export class ImportacoesService {
 
   private async previa(barbeariaId: string, abas: Aba[]) {
     const analise = analisarPlanilha(abas);
-    const nomesClientes = unicos(analise.linhas.map((l) => l.cliente));
-    const nomesServicos = unicos(analise.linhas.map((l) => l.servico));
+    const { novas, repetidas } = await this.separarJaImportadas(barbeariaId, analise.linhas);
+    const nomesClientes = unicos(novas.map((l) => l.cliente));
+    const nomesServicos = unicos(novas.map((l) => l.servico));
     const [clientes, servicos] = await Promise.all([
       this.prisma.cliente.findMany({
         where: { barbeariaId, nome: { in: nomesClientes } },
@@ -65,8 +66,9 @@ export class ImportacoesService {
 
     return {
       resumo: {
-        atendimentos: analise.linhas.length,
-        valorTotalCentavos: analise.linhas.reduce((soma, l) => soma + l.valorCentavos, 0),
+        atendimentos: novas.length,
+        jaImportados: repetidas.length,
+        valorTotalCentavos: novas.reduce((soma, l) => soma + l.valorCentavos, 0),
         dias: analise.abas.filter((a) => a.importada).length,
         abasIgnoradas: analise.abas.filter((a) => !a.importada).length,
         clientesNovos: nomesClientes.filter((n) => !existentesC.has(n)).length,
@@ -75,7 +77,7 @@ export class ImportacoesService {
       },
       abas: analise.abas,
       problemas: analise.problemas.slice(0, LIMITE_PROBLEMAS),
-      amostra: analise.linhas.slice(0, LIMITE_AMOSTRA),
+      amostra: novas.slice(0, LIMITE_AMOSTRA),
     };
   }
 
@@ -97,11 +99,50 @@ export class ImportacoesService {
    */
   private async importar(barbeariaId: string, abas: Aba[]) {
     const analise = analisarPlanilha(abas);
+    // Mandar a mesma planilha duas vezes não duplica o Financeiro: o que já existe é pulado
+    const { novas, repetidas } = await this.separarJaImportadas(barbeariaId, analise.linhas);
     const gravado = await this.prisma.$transaction(
-      (tx) => this.gravar(tx, barbeariaId, analise.linhas),
+      (tx) => this.gravar(tx, barbeariaId, novas),
       { timeout: TEMPO_MAXIMO_TRANSACAO_MS },
     );
-    return { ...gravado, avisos: avisosDaImportacao(analise) };
+    return {
+      ...gravado,
+      jaImportados: repetidas.length,
+      avisos: [
+        ...(repetidas.length > 0
+          ? [`${repetidas.length} atendimento(s) já tinham sido importados antes e foram pulados`]
+          : []),
+        ...avisosDaImportacao(analise),
+      ],
+    };
+  }
+
+  /**
+   * Separa as linhas que já estão no histórico (mesmo dia e hora, cliente, profissional e
+   * serviço) das novas. Uma linha repetida dentro da própria planilha também conta como repetida.
+   */
+  private async separarJaImportadas(barbeariaId: string, linhas: LinhaImportavel[]) {
+    if (linhas.length === 0) return { novas: [], repetidas: [] };
+    const instantes = linhas.map((l) => l.dataHora.getTime());
+    const existentes = await this.prisma.atendimento.findMany({
+      where: {
+        barbeariaId,
+        data: { gte: new Date(Math.min(...instantes)), lte: new Date(Math.max(...instantes)) },
+      },
+      select: { data: true, clienteNome: true, profissionalNome: true, servico: { select: { nome: true } } },
+    });
+    const vistas = new Set(
+      existentes.map((a) => chaveDoAtendimento(a.data, a.clienteNome, a.profissionalNome, a.servico.nome)),
+    );
+    return linhas.reduce<{ novas: LinhaImportavel[]; repetidas: LinhaImportavel[] }>(
+      (separadas, linha) => {
+        const chave = chaveDoAtendimento(linha.dataHora, linha.cliente, linha.profissional, linha.servico);
+        if (vistas.has(chave)) return { ...separadas, repetidas: [...separadas.repetidas, linha] };
+        vistas.add(chave);
+        return { ...separadas, novas: [...separadas.novas, linha] };
+      },
+      { novas: [], repetidas: [] },
+    );
   }
 
   private async gravar(tx: Banco, barbeariaId: string, linhas: LinhaImportavel[]) {
@@ -166,6 +207,11 @@ export class ImportacoesService {
       atendimentosCriados: count,
     };
   }
+}
+
+/** Mesmo instante, cliente, profissional e serviço = o mesmo atendimento (sem diferenciar maiúsculas). */
+function chaveDoAtendimento(data: Date, cliente: string, profissional: string | null, servico: string): string {
+  return [data.toISOString(), cliente, profissional ?? '', servico].map((parte) => parte.trim().toLowerCase()).join('|');
 }
 
 function avisosDaImportacao(analise: AnalisePlanilha): string[] {

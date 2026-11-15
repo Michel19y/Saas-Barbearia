@@ -14,6 +14,8 @@ export type PreviaImportacao = {
     clientesNovos: number;
     servicosNovos: number;
     problemas: number;
+    /** Linhas que já estavam no histórico (de uma importação anterior) e vão ser puladas. */
+    jaImportados?: number;
   };
   abas: Array<{
     titulo: string;
@@ -106,6 +108,13 @@ export default function PreviaImportacaoPainel({
           </div>
         ))}
       </dl>
+
+      {(resumo.jaImportados ?? 0) > 0 && (
+        <p className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+          {plural(resumo.jaImportados ?? 0, "atendimento já tinha sido importado", "atendimentos já tinham sido importados")}{" "}
+          antes e não vai entrar de novo. Pode mandar a mesma planilha sem medo de duplicar o Financeiro.
+        </p>
+      )}
 
       {resumo.problemas > 0 && (
         <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3">

@@ -26,6 +26,7 @@ describe('PublicoService com horário de funcionamento', () => {
     usuario: { findMany: vi.fn() },
     agendamento: { findMany: vi.fn(), create: vi.fn() },
     cliente: { findFirst: vi.fn(), create: vi.fn() },
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   };
   const horarios = { carregarConfig: vi.fn(() => Promise.resolve(config)) };
 
@@ -118,6 +119,22 @@ describe('PublicoService com horário de funcionamento', () => {
       }),
     ).rejects.toThrow(new ConflictException('Esse horário está fora do expediente, escolha outro'));
     expect(prisma.agendamento.create).not.toHaveBeenCalled();
+  });
+
+  it('dois clientes no mesmo horário: se a trava do banco recusar, o segundo recebe 409 e nada fica pela metade', async () => {
+    prisma.cliente.findFirst.mockResolvedValue({ id: 'c1', nome: 'Pedro' });
+    prisma.$transaction.mockRejectedValueOnce({
+      message: 'conflicting key value violates exclusion constraint "agendamentos_sem_sobreposicao"',
+    });
+
+    await expect(
+      service.criarAgendamentoPublico('loja', {
+        servicoIds: ['s1'],
+        inicio: `${DIA}T10:00:00-03:00`,
+        nome: 'Pedro',
+        telefone: '11999990000',
+      }),
+    ).rejects.toThrow(new ConflictException('Esse horário acabou de ser ocupado, escolha outro'));
   });
 
   it('com folga da Ana, o agendamento "qualquer um" vai para o Bruno', async () => {
