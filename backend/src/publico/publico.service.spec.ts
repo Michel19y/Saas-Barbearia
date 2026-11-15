@@ -88,6 +88,24 @@ describe('PublicoService com horário de funcionamento', () => {
     expect(horas(await service.horariosDisponiveis('loja', 's1', DIA))).toEqual(['11:00', '11:30', '13:00', '13:30']);
   });
 
+  it('calendário: devolve só os dias abertos (domingo fechado e folga da barbearia somem)', async () => {
+    // Semana: domingo fechado; e a barbearia fecha no dia 10/12 (quinta)
+    config.barbearia = Array.from({ length: 7 }, (_, d) => ({ aberto: d !== 0, inicio: '09:00', fim: '19:00' }));
+    config.excecoes = [{ profissionalId: null, data: DIA, fechado: true, inicio: null, fim: null }];
+
+    const { abertos } = await service.diasAbertos('loja', '2026-12-09', '5');
+
+    // 09 qua, 10 qui (fechado), 11 sex, 12 sáb, 13 dom (fechado)
+    expect(abertos).toEqual(['2026-12-09', '2026-12-11', '2026-12-12']);
+  });
+
+  it('calendário com profissional de folga: o dia some só para ele', async () => {
+    config.excecoes = [{ profissionalId: 'ana', data: DIA, fechado: true, inicio: null, fim: null }];
+
+    expect((await service.diasAbertos('loja', DIA, '1', 'ana')).abertos).toEqual([]);
+    expect((await service.diasAbertos('loja', DIA, '1')).abertos).toEqual([DIA]);
+  });
+
   it('recusa agendamento fora do expediente mesmo vindo direto pela API', async () => {
     config.excecoes = [{ profissionalId: null, data: DIA, fechado: false, inicio: '14:00', fim: '18:00' }];
 

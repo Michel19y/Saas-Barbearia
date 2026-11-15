@@ -2,481 +2,631 @@
 
 import { use, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Check, ChevronLeft, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { formatarPreco } from "@/lib/formato";
 
-type Profissional = {
-  id: string;
-  nome: string;
+type Profissional = { id: string; nome: string };
+type Servico = { id: string; nome: string; duracaoMin: number; precoCentavos: number };
+type Passo = "servico" | "dia" | "horario" | "dados";
+
+const PASSOS: { id: Passo; titulo: string }[] = [
+  { id: "servico", titulo: "O que você vai fazer?" },
+  { id: "dia", titulo: "Qual dia?" },
+  { id: "horario", titulo: "Que horas?" },
+  { id: "dados", titulo: "Seus dados" },
+];
+
+const FUSO = "America/Sao_Paulo";
+/** Dias mostrados no calendário (5 semanas), a partir de hoje. */
+const DIAS_NO_CALENDARIO = 35;
+const DIAS_NA_SEMANA = 7;
+const INICIAIS_DOS_DIAS = ["D", "S", "T", "Q", "Q", "S", "S"];
+const MEIO_DIA = 12;
+const FIM_DA_TARDE = 18;
+const DIGITOS_TELEFONE_MIN = 10;
+const DIGITOS_TELEFONE_MAX = 11;
+/** Telefone: DDD (2) e o número, com hífen depois de 4 dígitos (fixo, 8) ou 5 (celular, 9). */
+const TAMANHO_DDD = 2;
+const PRIMEIRA_PARTE_FIXO = 4;
+const PRIMEIRA_PARTE_CELULAR = 5;
+const DIGITOS_CELULAR = 9;
+
+/** Cores da página do cliente: azul de fachada de barbearia, latão e verde só para "agendado". */
+const COR = {
+  tinta: "#1F2A44",
+  latao: "#B8893B",
+  linha: "#D9DEE8",
+  superficie: "#F2F4F8",
+  sucesso: "#2F7D5B",
 };
 
-type Servico = {
-  id: string;
-  nome: string;
-  duracaoMin: number;
-  precoCentavos: number;
+/** Aparência de cada dia do calendário. */
+type EstadoDia = "escolhido" | "indisponivel" | "livre";
+const ESTILO_DIA: Record<EstadoDia, { background: string; color: string }> = {
+  escolhido: { background: COR.tinta, color: "white" },
+  indisponivel: { background: "transparent", color: "#B4BAC6" },
+  livre: { background: COR.superficie, color: COR.tinta },
+};
+function estadoDoDia(escolhido: boolean, desabilitado: boolean): EstadoDia {
+  if (escolhido) return "escolhido";
+  return desabilitado ? "indisponivel" : "livre";
+}
+const NOME_MIN = 2;
+
+const BOTAO_PRINCIPAL =
+  "flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1F2A44] px-5 text-base font-semibold text-white transition-colors hover:bg-[#2c3a5c] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8893B] focus-visible:ring-offset-2";
+const CAMPO =
+  "min-h-12 w-full rounded-xl border border-[#D9DEE8] bg-white px-4 text-base text-[#1F2A44] placeholder:text-zinc-400 focus-visible:border-[#1F2A44] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F2A44]/20";
+
+// ---------- datas ----------
+
+/** "2026-11-15" de hoje no horário de Brasília. */
+function hojeNoFuso(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: FUSO }).format(new Date());
+}
+
+/** Soma dias a uma data "AAAA-MM-DD" sem passar pelo fuso do aparelho. */
+function somarDias(data: string, dias: number): string {
+  const [ano, mes, dia] = data.split("-").map(Number);
+  return new Date(Date.UTC(ano, mes - 1, dia + dias)).toISOString().slice(0, "AAAA-MM-DD".length);
+}
+
+const diaDaSemana = (data: string) => {
+  const [ano, mes, dia] = data.split("-").map(Number);
+  return new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay();
 };
 
-function paraISO(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+function formatarData(data: string, opcoes: Intl.DateTimeFormatOptions): string {
+  const [ano, mes, dia] = data.split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", ...opcoes }).format(new Date(Date.UTC(ano, mes - 1, dia)));
 }
 
-function hojeISO() {
-  return paraISO(new Date());
+const horaDe = (iso: string) =>
+  new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+
+const horaNumero = (iso: string) => Number(horaDe(iso).slice(0, "HH".length));
+
+/** "(11) 98888-7777" enquanto digita; guarda só até 11 dígitos. */
+function mascararTelefone(texto: string): string {
+  // Só os dígitos: "(11) 9888" vira "119888".
+  // https://regex101.com/?flavor=javascript&flags=g&regex=%5CD&testString=(11)%209888
+  const d = texto.replace(/\D/g, "").slice(0, DIGITOS_TELEFONE_MAX);
+  if (d.length <= TAMANHO_DDD) return d;
+  const ddd = d.slice(0, TAMANHO_DDD);
+  const resto = d.slice(TAMANHO_DDD);
+  if (resto.length <= PRIMEIRA_PARTE_FIXO) return `(${ddd}) ${resto}`;
+  const corte = resto.length >= DIGITOS_CELULAR ? PRIMEIRA_PARTE_CELULAR : PRIMEIRA_PARTE_FIXO;
+  return `(${ddd}) ${resto.slice(0, corte)}-${resto.slice(corte)}`;
 }
 
-function proximosDias(quantidade: number) {
-  const dias: { iso: string; diaSemana: string; dia: number; rotulo?: string }[] = [];
-  const hoje = new Date();
-  for (let i = 0; i < quantidade; i++) {
-    const d = new Date(hoje);
-    d.setDate(hoje.getDate() + i);
-    dias.push({
-      iso: paraISO(d),
-      diaSemana: d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", ""),
-      dia: d.getDate(),
-      rotulo: i === 0 ? "Hoje" : i === 1 ? "Amanhã" : undefined,
-    });
-  }
-  return dias;
+const digitosDoTelefone = (texto: string) => texto.split("").filter((c) => c >= "0" && c <= "9").length;
+
+// ---------- peças ----------
+
+function Progresso({ atual }: { atual: number }) {
+  return (
+    <ol aria-label={`Passo ${atual + 1} de ${PASSOS.length}`} className="flex gap-1.5">
+      {PASSOS.map((passo, i) => (
+        <li
+          key={passo.id}
+          aria-current={i === atual ? "step" : undefined}
+          className="h-1.5 flex-1 rounded-full transition-colors"
+          style={{ background: i <= atual ? COR.latao : COR.linha }}
+        >
+          <span className="sr-only">{passo.titulo}</span>
+        </li>
+      ))}
+    </ol>
+  );
 }
 
-export default function AgendarPage({
-  params,
+function Resumo({
+  servicos,
+  profissional,
+  data,
+  horario,
 }: {
-  params: Promise<{ slug: string }>;
+  servicos: Servico[];
+  profissional: string;
+  data: string | null;
+  horario: string | null;
 }) {
-  const { slug } = use(params);
-  const dias = useMemo(() => proximosDias(14), []);
+  const total = servicos.reduce((soma, s) => soma + s.precoCentavos, 0);
+  const duracao = servicos.reduce((soma, s) => soma + s.duracaoMin, 0);
+  return (
+    <dl className="space-y-2 rounded-2xl p-4 text-[15px]" style={{ background: COR.superficie }}>
+      <div className="flex justify-between gap-4">
+        <dt className="text-zinc-600">Serviço</dt>
+        <dd className="text-right font-medium">{servicos.map((s) => s.nome).join(" + ")}</dd>
+      </div>
+      {data && (
+        <div className="flex justify-between gap-4">
+          <dt className="text-zinc-600">Quando</dt>
+          <dd className="text-right font-medium">
+            {formatarData(data, { weekday: "long", day: "numeric", month: "long" })}
+            {horario && ` às ${horaDe(horario)}`}
+          </dd>
+        </div>
+      )}
+      <div className="flex justify-between gap-4">
+        <dt className="text-zinc-600">Com</dt>
+        <dd className="text-right font-medium">{profissional}</dd>
+      </div>
+      <div className="flex justify-between gap-4 border-t pt-2" style={{ borderColor: COR.linha }}>
+        <dt className="text-zinc-600">{duracao} min</dt>
+        <dd className="text-right font-semibold">{formatarPreco(total)}</dd>
+      </div>
+    </dl>
+  );
+}
 
+// ---------- página ----------
+
+export default function AgendarPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
+  const router = useRouter();
+  const hoje = useMemo(() => hojeNoFuso(), []);
+
+  const [nomeBarbearia, setNomeBarbearia] = useState("");
   const [servicos, setServicos] = useState<Servico[]>([]);
-  const [servicoIds, setServicoIds] = useState<string[]>([]);
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  const [passo, setPasso] = useState<Passo>("servico");
+  const [servicoIds, setServicoIds] = useState<string[]>([]);
   const [profissionalId, setProfissionalId] = useState("");
-  const [data, setData] = useState(hojeISO());
-  const [horarios, setHorarios] = useState<string[]>([]);
-  const [horarioEscolhido, setHorarioEscolhido] = useState<string | null>(null);
+  const [diasAbertos, setDiasAbertos] = useState<string[] | null>(null);
+  const [data, setData] = useState<string | null>(null);
+  const [horarios, setHorarios] = useState<string[] | null>(null);
+  const [horario, setHorario] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [carregandoServicos, setCarregandoServicos] = useState(true);
-  const [carregandoHorarios, setCarregandoHorarios] = useState(false);
-  const [fechadoNoDia, setFechadoNoDia] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [confirmado, setConfirmado] = useState(false);
-  const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
-  const router = useRouter();
+  const [agendado, setAgendado] = useState(false);
 
-  // Link antigo (a barbearia trocou o link): troca a URL pelo link atual, sem recarregar.
-  // Os dados abaixo já funcionam com o link antigo, então a página não depende disso.
-  useEffect(() => {
-    async function irParaLinkAtual() {
-      try {
-        const { slug: atual } = (await apiFetch(`/publico/${slug}`)) as { slug: string };
-        if (atual && atual !== slug) router.replace(`/agendar/${atual}`);
-      } catch {
-        // Barbearia inexistente: as outras chamadas já mostram o erro na tela
-      }
-    }
-    void irParaLinkAtual();
-  }, [slug, router]);
-
-  useEffect(() => {
-    apiFetch(`/publico/${slug}/servicos`)
-      .then((lista: Servico[]) => {
-        setServicos(lista);
-        if (lista.length > 0) setServicoIds([lista[0].id]);
-      })
-      .catch(() => setErro("Não consegui carregar os serviços dessa barbearia."))
-      .finally(() => setCarregandoServicos(false));
-
-    apiFetch(`/publico/${slug}/profissionais`)
-      .then(setProfissionais)
-      .catch(() => setProfissionais([]));
-  }, [slug]);
-
-  useEffect(() => {
-    if (servicoIds.length === 0 || !data) {
-      setHorarios([]);
-      return;
-    }
-    setCarregandoHorarios(true);
-    setHorarioEscolhido(null);
-    apiFetch(
-      `/publico/${slug}/horarios?servicoIds=${encodeURIComponent(servicoIds.join(","))}&data=${encodeURIComponent(data)}${
-        profissionalId
-          ? `&profissionalId=${encodeURIComponent(profissionalId)}`
-          : ""
-      }`,
-    )
-      .then(setHorarios)
-      .catch(() => setHorarios([]))
-      .finally(() => setCarregandoHorarios(false));
-  }, [slug, servicoIds, data, profissionalId]);
-
-  // Dia fechado (barbearia ou profissional de folga): mostra "Fechado" em vez de "sem horário livre"
+  // Dados da barbearia; link antigo é trocado pelo atual na barra de endereço
   useEffect(() => {
     let ativo = true;
-    async function verificarExpediente() {
+    async function carregar() {
       try {
-        const profissional = profissionalId ? `&profissionalId=${encodeURIComponent(profissionalId)}` : "";
-        const { aberto } = (await apiFetch(
-          `/publico/${slug}/expediente?data=${encodeURIComponent(data)}${profissional}`,
-        )) as { aberto: boolean };
-        if (ativo) setFechadoNoDia(!aberto);
+        const [barbearia, lista, equipe] = await Promise.all([
+          apiFetch(`/publico/${slug}`) as Promise<{ nome: string; slug: string }>,
+          apiFetch(`/publico/${slug}/servicos`) as Promise<Servico[]>,
+          (apiFetch(`/publico/${slug}/profissionais`) as Promise<Profissional[]>).catch(() => []),
+        ]);
+        if (!ativo) return;
+        setNomeBarbearia(barbearia.nome);
+        setServicos(lista);
+        setProfissionais(equipe);
+        if (barbearia.slug && barbearia.slug !== slug) router.replace(`/agendar/${barbearia.slug}`);
       } catch {
-        if (ativo) setFechadoNoDia(false);
+        if (ativo) setErro("Não encontramos essa barbearia. Confira o link que você recebeu.");
+      } finally {
+        if (ativo) setCarregando(false);
       }
     }
-    void verificarExpediente();
+    void carregar();
     return () => {
       ativo = false;
     };
-  }, [slug, data, profissionalId]);
+  }, [slug, router]);
+
+  // Dias abertos para o calendário (muda se escolher um profissional de folga em algum dia)
+  useEffect(() => {
+    if (passo !== "dia") return;
+    let ativo = true;
+    async function carregarDias() {
+      try {
+        const quem = profissionalId ? `&profissionalId=${encodeURIComponent(profissionalId)}` : "";
+        const { abertos } = (await apiFetch(
+          `/publico/${slug}/dias?de=${hoje}&dias=${DIAS_NO_CALENDARIO}${quem}`,
+        )) as { abertos: string[] };
+        if (ativo) setDiasAbertos(abertos);
+      } catch {
+        if (ativo) setDiasAbertos(null);
+      }
+    }
+    void carregarDias();
+    return () => {
+      ativo = false;
+    };
+  }, [passo, slug, hoje, profissionalId]);
+
+  // Horários livres do dia escolhido
+  useEffect(() => {
+    if (passo !== "horario" || !data || servicoIds.length === 0) return;
+    let ativo = true;
+    async function carregarHorarios() {
+      try {
+        const quem = profissionalId ? `&profissionalId=${encodeURIComponent(profissionalId)}` : "";
+        const lista = (await apiFetch(
+          `/publico/${slug}/horarios?servicoIds=${encodeURIComponent(servicoIds.join(","))}&data=${data}${quem}`,
+        )) as string[];
+        if (ativo) setHorarios(lista);
+      } catch {
+        if (ativo) setHorarios([]);
+      }
+    }
+    void carregarHorarios();
+    return () => {
+      ativo = false;
+    };
+  }, [passo, slug, data, servicoIds, profissionalId]);
+
+  const indicePasso = PASSOS.findIndex((p) => p.id === passo);
+  const escolhidos = servicos.filter((s) => servicoIds.includes(s.id));
+  const nomeProfissional = profissionais.find((p) => p.id === profissionalId)?.nome ?? "Quem estiver livre";
+
+  // Calendário: semanas completas de domingo a sábado, cobrindo os próximos dias
+  const calendario = useMemo(() => {
+    const inicio = somarDias(hoje, -diaDaSemana(hoje));
+    const fim = somarDias(hoje, DIAS_NO_CALENDARIO - 1);
+    const total = Math.ceil((diaDaSemana(hoje) + DIAS_NO_CALENDARIO) / DIAS_NA_SEMANA) * DIAS_NA_SEMANA;
+    return Array.from({ length: total }, (_, i) => somarDias(inicio, i)).map((dia) => ({
+      dia,
+      foraDoPeriodo: dia < hoje || dia > fim,
+    }));
+  }, [hoje]);
+  const meses = [...new Set(calendario.filter((c) => !c.foraDoPeriodo).map((c) => formatarData(c.dia, { month: "long" })))];
+
+  const turnos = useMemo(() => {
+    const lista = horarios ?? [];
+    return [
+      { nome: "Manhã", itens: lista.filter((h) => horaNumero(h) < MEIO_DIA) },
+      { nome: "Tarde", itens: lista.filter((h) => horaNumero(h) >= MEIO_DIA && horaNumero(h) < FIM_DA_TARDE) },
+      { nome: "Noite", itens: lista.filter((h) => horaNumero(h) >= FIM_DA_TARDE) },
+    ].filter((t) => t.itens.length > 0);
+  }, [horarios]);
+
+  function irPara(proximo: Passo) {
+    setErro(null);
+    setPasso(proximo);
+    window.scrollTo({ top: 0 });
+  }
+
+  function voltar() {
+    irPara(PASSOS[Math.max(indicePasso - 1, 0)].id);
+  }
 
   function alternarServico(id: string) {
-    setServicoIds((atual) =>
-      atual.includes(id) ? atual.filter((s) => s !== id) : [...atual, id],
-    );
+    setServicoIds((atual) => (atual.includes(id) ? atual.filter((s) => s !== id) : [...atual, id]));
   }
 
-  const servicosSelecionados = servicos.filter((s) => servicoIds.includes(s.id));
-  const duracaoTotal = servicosSelecionados.reduce((soma, s) => soma + s.duracaoMin, 0);
-  const precoTotal = servicosSelecionados.reduce((soma, s) => soma + s.precoCentavos, 0);
+  function escolherDia(dia: string) {
+    setData(dia);
+    setHorario(null);
+    setHorarios(null);
+    irPara("horario");
+  }
 
-  function handleRevisar(e: FormEvent) {
+  function escolherHorario(h: string) {
+    setHorario(h);
+    irPara("dados");
+  }
+
+  async function confirmar(e: FormEvent) {
     e.preventDefault();
-    if (!horarioEscolhido) return;
-    setErro(null);
-    setMostrarConfirmacao(true);
-  }
-
-  async function confirmarEnvio() {
-    if (!horarioEscolhido) return;
+    if (!horario) return;
     setErro(null);
     setEnviando(true);
     try {
       await apiFetch(`/publico/${slug}/agendamento`, {
         method: "POST",
         body: JSON.stringify({
-          nome,
+          nome: nome.trim(),
           telefone,
           servicoIds,
-          inicio: horarioEscolhido,
+          inicio: horario,
           ...(profissionalId ? { profissionalId } : {}),
         }),
       });
-      setMostrarConfirmacao(false);
-      setConfirmado(true);
+      setAgendado(true);
+      window.scrollTo({ top: 0 });
     } catch (err) {
-      setErro(err instanceof Error ? err.message : "Erro ao agendar");
+      // Horário pego por outra pessoa enquanto preenchia: volta para escolher outro
+      setHorario(null);
+      setHorarios(null);
+      setPasso("horario");
+      setErro(err instanceof Error ? err.message : "Não deu para marcar esse horário. Escolha outro.");
     } finally {
       setEnviando(false);
     }
   }
 
-  const nomeProfissionalEscolhido = profissionalId
-    ? profissionais.find((p) => p.id === profissionalId)?.nome
-    : "Qualquer profissional disponível";
-
-  function marcarDeNovo() {
-    setConfirmado(false);
-    setHorarioEscolhido(null);
-    setProfissionalId("");
-    setData(hojeISO());
-    if (servicos.length > 0) setServicoIds([servicos[0].id]);
+  function marcarOutro() {
+    setAgendado(false);
+    setServicoIds([]);
+    setData(null);
+    setHorario(null);
+    setHorarios(null);
+    irPara("servico");
   }
 
-  if (confirmado) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-4">
-        <div className="max-w-sm space-y-4 text-center">
-          <h1 className="text-2xl font-semibold">Agendado!</h1>
-          <p className="text-sm text-zinc-500">
-            Seu horário foi marcado para{" "}
-            {horarioEscolhido &&
-              new Date(horarioEscolhido).toLocaleString("pt-BR", {
-                dateStyle: "short",
-                timeStyle: "short",
-              })}
-            . Até lá!
-          </p>
-          <button
-            type="button"
-            onClick={marcarDeNovo}
-            className="mx-auto min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50"
-          >
-            Marcar outro horário
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const telefoneValido = digitosDoTelefone(telefone) >= DIGITOS_TELEFONE_MIN;
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10">
-      <h1 className="mb-1 text-3xl font-semibold">Agendar horário</h1>
-      <p className="mb-8 text-base text-zinc-500">
-        Escolha o serviço, o dia e um horário disponível.
-      </p>
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 pt-6 pb-8 text-[#1F2A44]">
+      <header className="mb-6">
+        <h1
+          className="text-[2.6rem] leading-[0.95] font-bold tracking-tight uppercase"
+          style={{ fontFamily: "var(--font-letreiro), sans-serif" }}
+        >
+          {nomeBarbearia || " "}
+        </h1>
+        <p className="mt-1 text-base text-zinc-600">Marque seu horário em poucos toques.</p>
+      </header>
 
-      {carregandoServicos && <p className="text-sm text-zinc-500">Carregando...</p>}
-
-      {!carregandoServicos && servicos.length === 0 && (
-        <p className="text-sm text-zinc-500">
-          Essa barbearia ainda não tem serviços disponíveis para agendamento.
+      {carregando && (
+        <p role="status" className="flex items-center gap-2 text-zinc-600">
+          <Loader2 aria-hidden="true" size={18} className="animate-spin motion-reduce:animate-none" /> Carregando…
         </p>
       )}
 
-      {!carregandoServicos && servicos.length > 0 && (
-        <div className="space-y-8">
-          <div className="space-y-3">
-            <label className="text-sm text-zinc-500">
-              Serviços (pode escolher mais de um — ex: corte + barba + sobrancelha)
-            </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {servicos.map((s) => {
-                const selecionado = servicoIds.includes(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => alternarServico(s.id)}
-                    className={`flex items-start gap-3 rounded-lg border-2 px-5 py-4 text-left transition-colors ${
-                      selecionado
-                        ? "border-green-600 bg-green-50 text-green-900"
-                        : "border-zinc-300 hover:border-zinc-950"
-                    }`}
-                  >
-                    <span
-                      className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 text-xs ${
-                        selecionado
-                          ? "border-green-600 bg-green-600 text-white"
-                          : "border-zinc-300"
-                      }`}
-                    >
-                      {selecionado && "✓"}
-                    </span>
-                    <span>
-                      <p className="text-lg font-semibold">{s.nome}</p>
-                      <p className={selecionado ? "text-green-700" : "text-zinc-500"}>
-                        {s.duracaoMin} min · {formatarPreco(s.precoCentavos)}
-                      </p>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {servicosSelecionados.length > 1 && (
-              <p className="text-sm font-medium text-zinc-700">
-                Total: {duracaoTotal} min · {formatarPreco(precoTotal)}
-              </p>
+      {!carregando && servicos.length === 0 && (
+        <p className="rounded-2xl p-4 text-base" style={{ background: COR.superficie }}>
+          {erro ?? "Essa barbearia ainda não abriu horários pelo link. Fale com ela pelo WhatsApp."}
+        </p>
+      )}
+
+      {!carregando && servicos.length > 0 && agendado && horario && data && (
+        <section aria-live="polite" className="flex flex-1 flex-col items-center pt-6 text-center">
+          <span
+            className="animar-carimbo flex size-20 items-center justify-center rounded-full text-white"
+            style={{ background: COR.sucesso }}
+          >
+            <Check aria-hidden="true" size={44} strokeWidth={3} />
+          </span>
+          <h2 className="mt-5 text-2xl font-semibold">Agendado!</h2>
+          <p className="mt-1 text-base text-zinc-600">
+            Te esperamos {formatarData(data, { weekday: "long" })} às {horaDe(horario)}.
+          </p>
+          <div className="mt-6 w-full text-left">
+            <Resumo servicos={escolhidos} profissional={nomeProfissional} data={data} horario={horario} />
+          </div>
+          <button type="button" onClick={marcarOutro} className="mt-6 min-h-12 text-base font-semibold underline underline-offset-4">
+            Marcar outro horário
+          </button>
+        </section>
+      )}
+
+      {!carregando && servicos.length > 0 && !agendado && (
+        <section aria-labelledby="passo-titulo" className="flex flex-1 flex-col">
+          <Progresso atual={indicePasso} />
+          <div className="mt-4 mb-5 flex items-center gap-1">
+            {indicePasso > 0 && (
+              <button
+                type="button"
+                onClick={voltar}
+                aria-label="Voltar"
+                className="-ml-2 flex size-11 items-center justify-center rounded-full hover:bg-[#F2F4F8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8893B]"
+              >
+                <ChevronLeft aria-hidden="true" size={24} />
+              </button>
             )}
+            <h2 id="passo-titulo" className="text-xl font-semibold">
+              {PASSOS[indicePasso].titulo}
+            </h2>
           </div>
 
-          {profissionais.length > 1 && (
-            <div className="space-y-3">
-              <label className="text-sm text-zinc-500">Profissional</label>
-              <div className="flex flex-wrap gap-3">
-                {[{ id: "", nome: "Qualquer um" }, ...profissionais].map(
-                  (profissional) => {
-                    const selecionado = profissionalId === profissional.id;
-                    return (
+          {erro && (
+            <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-[15px] text-red-800">
+              {erro}
+            </p>
+          )}
+
+          {passo === "servico" && (
+            <div className="flex flex-1 flex-col">
+              <p className="mb-3 text-[15px] text-zinc-600">Pode escolher mais de um, como corte e barba.</p>
+              <ul className="space-y-2">
+                {servicos.map((s) => {
+                  const marcado = servicoIds.includes(s.id);
+                  return (
+                    <li key={s.id}>
                       <button
-                        key={profissional.id || "qualquer"}
                         type="button"
-                        aria-pressed={selecionado}
-                        onClick={() => setProfissionalId(profissional.id)}
-                        className={`min-h-11 rounded-lg border-2 px-5 py-3 text-lg font-semibold transition-colors ${
-                          selecionado
-                            ? "border-green-600 bg-green-50 text-green-900"
-                            : "border-zinc-300 hover:border-zinc-950"
-                        }`}
+                        aria-pressed={marcado}
+                        onClick={() => alternarServico(s.id)}
+                        className="flex min-h-16 w-full items-center gap-4 rounded-2xl border-2 px-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8893B]"
+                        style={{
+                          borderColor: marcado ? COR.tinta : COR.linha,
+                          background: marcado ? COR.superficie : "white",
+                        }}
                       >
-                        {profissional.nome}
+                        <span className="flex-1">
+                          <span className="block text-[17px] font-semibold">{s.nome}</span>
+                          <span className="block text-[15px] text-zinc-600">
+                            {s.duracaoMin} min, {formatarPreco(s.precoCentavos)}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="flex size-7 shrink-0 items-center justify-center rounded-full border-2"
+                          style={{
+                            borderColor: marcado ? COR.tinta : COR.linha,
+                            background: marcado ? COR.tinta : "white",
+                          }}
+                        >
+                          {marcado && <Check size={16} strokeWidth={3} className="text-white" />}
+                        </span>
                       </button>
-                    );
-                  },
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {profissionais.length > 1 && (
+                <fieldset className="mt-6">
+                  <legend className="mb-2 text-[15px] font-semibold">Com quem?</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {[{ id: "", nome: "Quem estiver livre" }, ...profissionais].map((p) => {
+                      const ativo = profissionalId === p.id;
+                      return (
+                        <button
+                          key={p.id || "qualquer"}
+                          type="button"
+                          aria-pressed={ativo}
+                          onClick={() => setProfissionalId(p.id)}
+                          className="min-h-11 rounded-full border-2 px-4 text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8893B]"
+                          style={{
+                            borderColor: ativo ? COR.tinta : COR.linha,
+                            background: ativo ? COR.tinta : "white",
+                            color: ativo ? "white" : COR.tinta,
+                          }}
+                        >
+                          {p.nome}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
+
+              <div className="sticky bottom-0 -mx-4 mt-auto border-t bg-white/95 px-4 pt-3 pb-4 backdrop-blur" style={{ borderColor: COR.linha }}>
+                {escolhidos.length > 0 && (
+                  <p className="mb-2 flex justify-between text-[15px]">
+                    <span className="truncate pr-3">{escolhidos.map((s) => s.nome).join(" + ")}</span>
+                    <span className="shrink-0 font-semibold">
+                      {formatarPreco(escolhidos.reduce((soma, s) => soma + s.precoCentavos, 0))}
+                    </span>
+                  </p>
                 )}
+                <button type="button" disabled={escolhidos.length === 0} onClick={() => irPara("dia")} className={BOTAO_PRINCIPAL}>
+                  {escolhidos.length === 0 ? "Escolha um serviço" : "Escolher o dia"}
+                </button>
               </div>
             </div>
           )}
 
-          <div className="space-y-3">
-            <label className="text-sm text-zinc-500">Dia</label>
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {dias.map((d) => {
-                const selecionado = data === d.iso;
-                return (
-                  <button
-                    key={d.iso}
-                    type="button"
-                    onClick={() => setData(d.iso)}
-                    className={`flex w-20 shrink-0 flex-col items-center rounded-lg border-2 py-3 transition-colors ${
-                      selecionado
-                        ? "border-green-600 bg-green-50 text-green-900"
-                        : "border-zinc-300 hover:border-zinc-950"
-                    }`}
-                  >
-                    <span className="text-xs uppercase">{d.rotulo ?? d.diaSemana}</span>
-                    <span className="text-2xl font-semibold">{d.dia}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-sm text-zinc-500">Horários disponíveis</label>
-            {servicosSelecionados.length === 0 && (
-              <p className="text-sm text-zinc-500">Escolha pelo menos um serviço.</p>
-            )}
-            {servicosSelecionados.length > 0 && carregandoHorarios && (
-              <p className="text-sm text-zinc-500">Carregando horários...</p>
-            )}
-            {servicosSelecionados.length > 0 && !carregandoHorarios && horarios.length === 0 && (
-              <p className="text-sm text-zinc-500">
-                {fechadoNoDia
-                  ? `Fechado neste dia${profissionalId ? " para esse profissional" : ""}. Escolha outro dia.`
-                  : "Nenhum horário livre nesse dia. Escolha outro dia."}
-              </p>
-            )}
-            {!carregandoHorarios && horarios.length > 0 && (
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                {horarios.map((h) => {
-                  const selecionado = horarioEscolhido === h;
+          {passo === "dia" && (
+            <div>
+              <p className="mb-3 text-[15px] capitalize text-zinc-600">{meses.join(" e ")}</p>
+              <div role="grid" aria-label="Calendário" className="grid grid-cols-7 gap-1.5 text-center">
+                {INICIAIS_DOS_DIAS.map((inicial, i) => (
+                  <span key={`${inicial}-${i}`} aria-hidden="true" className="pb-1 text-sm font-medium text-zinc-500">
+                    {inicial}
+                  </span>
+                ))}
+                {calendario.map(({ dia, foraDoPeriodo }) => {
+                  const fechado = !foraDoPeriodo && diasAbertos !== null && !diasAbertos.includes(dia);
+                  const desabilitado = foraDoPeriodo || fechado || diasAbertos === null;
+                  const ehHoje = dia === hoje;
+                  const escolhido = dia === data;
                   return (
                     <button
-                      key={h}
+                      key={dia}
                       type="button"
-                      onClick={() => setHorarioEscolhido(h)}
-                      className={`rounded-lg border-2 py-3 text-base font-medium transition-colors ${
-                        selecionado
-                          ? "border-green-600 bg-green-600 text-white"
-                          : "border-zinc-300 hover:border-zinc-950"
-                      }`}
+                      disabled={desabilitado}
+                      onClick={() => escolherDia(dia)}
+                      aria-label={`${formatarData(dia, { weekday: "long", day: "numeric", month: "long" })}${fechado ? ", fechado" : ""}`}
+                      className="relative flex aspect-square items-center justify-center rounded-xl text-[17px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8893B] disabled:cursor-not-allowed"
+                      style={{
+                        ...ESTILO_DIA[estadoDoDia(escolhido, desabilitado)],
+                        textDecoration: fechado ? "line-through" : undefined,
+                        visibility: foraDoPeriodo && dia < hoje ? "hidden" : undefined,
+                      }}
                     >
-                      {new Date(h).toLocaleTimeString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {Number(dia.slice(-"DD".length))}
+                      {ehHoje && (
+                        <span aria-hidden="true" className="absolute bottom-1.5 size-1 rounded-full" style={{ background: COR.latao }} />
+                      )}
                     </button>
                   );
                 })}
               </div>
-            )}
-          </div>
+              {diasAbertos === null && (
+                <p role="status" className="mt-4 flex items-center gap-2 text-[15px] text-zinc-600">
+                  <Loader2 aria-hidden="true" size={16} className="animate-spin motion-reduce:animate-none" /> Vendo os dias livres…
+                </p>
+              )}
+              {diasAbertos !== null && (
+                <p className="mt-4 text-sm text-zinc-500">Dias riscados: a barbearia não atende.</p>
+              )}
+            </div>
+          )}
 
-          {horarioEscolhido && (
-            <form onSubmit={handleRevisar} className="space-y-3 border-t border-zinc-200 pt-4">
-              <div className="space-y-1">
-                <label className="text-xs text-zinc-500">Seu nome</label>
+          {passo === "horario" && data && (
+            <div>
+              <p className="mb-4 text-[15px] text-zinc-600 first-letter:uppercase">
+                {formatarData(data, { weekday: "long", day: "numeric", month: "long" })}
+              </p>
+              {horarios === null && (
+                <p role="status" className="flex items-center gap-2 text-[15px] text-zinc-600">
+                  <Loader2 aria-hidden="true" size={16} className="animate-spin motion-reduce:animate-none" /> Vendo os horários…
+                </p>
+              )}
+              {horarios !== null && horarios.length === 0 && (
+                <div className="rounded-2xl p-4 text-[15px]" style={{ background: COR.superficie }}>
+                  <p>Esse dia já está cheio.</p>
+                  <button type="button" onClick={voltar} className="mt-2 min-h-11 font-semibold underline underline-offset-4">
+                    Escolher outro dia
+                  </button>
+                </div>
+              )}
+              {turnos.map((turno) => (
+                <div key={turno.nome} className="mb-5">
+                  <h3 className="mb-2 text-[15px] font-semibold">{turno.nome}</h3>
+                  <div className="grid grid-cols-4 gap-2">
+                    {turno.itens.map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => escolherHorario(h)}
+                        className="min-h-12 rounded-xl border-2 text-base font-semibold tabular-nums transition-colors hover:border-[#1F2A44] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8893B]"
+                        style={{ borderColor: COR.linha }}
+                      >
+                        {horaDe(h)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {passo === "dados" && horario && (
+            <form onSubmit={confirmar} className="space-y-4">
+              <Resumo servicos={escolhidos} profissional={nomeProfissional} data={data} horario={horario} />
+              <div className="space-y-1.5">
+                <label htmlFor="cliente-nome" className="text-[15px] font-semibold">
+                  Seu nome
+                </label>
                 <input
+                  id="cliente-nome"
                   required
-                  minLength={2}
+                  minLength={NOME_MIN}
+                  autoComplete="name"
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
-                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  className={CAMPO}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs text-zinc-500">Seu telefone</label>
+              <div className="space-y-1.5">
+                <label htmlFor="cliente-telefone" className="text-[15px] font-semibold">
+                  WhatsApp
+                </label>
                 <input
+                  id="cliente-telefone"
                   required
-                  minLength={8}
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel-national"
+                  placeholder="(11) 98888-7777"
                   value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
-                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  onChange={(e) => setTelefone(mascararTelefone(e.target.value))}
+                  className={`${CAMPO} tabular-nums`}
                 />
+                <p className="text-sm text-zinc-500">A barbearia usa para confirmar ou avisar de mudanças.</p>
               </div>
-
-              {erro && !mostrarConfirmacao && (
-                <p className="text-sm text-red-600">{erro}</p>
-              )}
-
-              <button
-                type="submit"
-                className="w-full rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-              >
-                Revisar agendamento
+              <button type="submit" disabled={enviando || nome.trim().length < NOME_MIN || !telefoneValido} className={BOTAO_PRINCIPAL}>
+                {enviando && <Loader2 aria-hidden="true" size={18} className="animate-spin motion-reduce:animate-none" />}
+                {enviando ? "Marcando…" : "Confirmar agendamento"}
               </button>
             </form>
           )}
-        </div>
+        </section>
       )}
-
-      {mostrarConfirmacao && horarioEscolhido && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="confirmar-publico-titulo"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !enviando) {
-              setMostrarConfirmacao(false);
-            }
-          }}
-        >
-          <div className="w-full max-w-md space-y-4 rounded-lg border border-zinc-200 bg-white p-6 shadow-2xl">
-            <h2 id="confirmar-publico-titulo" className="text-lg font-semibold">
-              Confirmar agendamento
-            </h2>
-            <div className="space-y-1 text-sm text-zinc-800">
-              <p className="font-semibold">Serviços:</p>
-              <ul className="ml-4 list-disc">
-                {servicosSelecionados.map((s) => (
-                  <li key={s.id}>
-                    {s.nome} · {s.duracaoMin} min · {formatarPreco(s.precoCentavos)}
-                  </li>
-                ))}
-              </ul>
-              <p className="pt-1">
-                <span className="font-semibold">Profissional:</span>{" "}
-                {nomeProfissionalEscolhido}
-              </p>
-              <p>
-                <span className="font-semibold">Dia:</span>{" "}
-                {new Date(horarioEscolhido).toLocaleString("pt-BR", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                })}
-              </p>
-              <p>
-                <span className="font-semibold">Total:</span>{" "}
-                {formatarPreco(precoTotal)} · {duracaoTotal} min
-              </p>
-              <p className="pt-1">
-                <span className="font-semibold">Nome:</span> {nome}
-              </p>
-              <p>
-                <span className="font-semibold">Telefone:</span> {telefone}
-              </p>
-            </div>
-
-            {erro && <p className="text-sm text-red-600">{erro}</p>}
-
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                disabled={enviando}
-                onClick={() => setMostrarConfirmacao(false)}
-                className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
-              >
-                Voltar
-              </button>
-              <button
-                type="button"
-                disabled={enviando}
-                onClick={() => void confirmarEnvio()}
-                className="min-h-11 rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
-              >
-                {enviando ? "Confirmando..." : "Confirmar e agendar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </main>
   );
 }

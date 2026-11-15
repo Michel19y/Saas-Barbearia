@@ -21,6 +21,17 @@ export class PublicoController {
     return this.publicoService.listarProfissionais(slug);
   }
 
+  /** Dias em que há atendimento, para o calendário (ex.: ?de=2026-12-01&dias=35). */
+  @Get('dias')
+  dias(
+    @Param('slug') slug: string,
+    @Query('de') de: string,
+    @Query('dias') dias?: string,
+    @Query('profissionalId') profissionalId?: string,
+  ) {
+    return this.publicoService.diasAbertos(slug, de, dias, profissionalId);
+  }
+
   @Get('expediente')
   expediente(
     @Param('slug') slug: string,

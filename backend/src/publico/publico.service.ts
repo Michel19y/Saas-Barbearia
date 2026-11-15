@@ -13,6 +13,11 @@ import {
 import { CriarAgendamentoPublicoDto } from './dto/criar-agendamento-publico.dto.js';
 
 const PASSO_MIN = 30;
+/** Calendário da página pública: quantos dias mostrar e o teto de uma consulta. */
+const DIAS_NO_CALENDARIO = 35;
+const MAXIMO_DIAS_CONSULTA = 62;
+/** "2026-12-10" tem 10 caracteres no começo do ISO. */
+const DIGITOS_DATA_ISO = 10;
 const MS_POR_MINUTO = 60_000;
 
 // Quem atende cliente. A recepção entra no sistema, mas não é agendável.
@@ -137,6 +142,25 @@ export class PublicoService {
     const candidatos = await this.candidatos(barbearia.id, profissionalId);
     const janelas = await this.janelasDoDia(barbearia.id, candidatos, data);
     return { aberto: janelas.length > 0 };
+  }
+
+  /**
+   * Quais dias, a partir de `de`, a barbearia (ou o profissional escolhido) atende.
+   * Para o calendário da página apagar os dias fechados sem uma chamada por dia.
+   */
+  async diasAbertos(slug: string, deStr: string, quantidadeStr?: string, profissionalId?: string) {
+    const barbearia = await this.getBarbeariaPorSlug(slug);
+    const de = validarData(deStr);
+    const quantidade = Math.min(Math.max(Number(quantidadeStr) || DIAS_NO_CALENDARIO, 1), MAXIMO_DIAS_CONSULTA);
+    const candidatos = await this.candidatos(barbearia.id, profissionalId);
+    const config = await this.horarios.carregarConfig(barbearia.id);
+    const [ano, mes, dia] = de.split('-').map(Number);
+    const datas = Array.from({ length: quantidade }, (_, i) =>
+      new Date(Date.UTC(ano, mes - 1, dia + i)).toISOString().slice(0, DIGITOS_DATA_ISO),
+    );
+    return {
+      abertos: datas.filter((data) => candidatos.some((p) => janelaDoProfissional(config, p.id, data) !== null)),
+    };
   }
 
   private async candidatos(barbeariaId: string, profissionalId?: string) {
