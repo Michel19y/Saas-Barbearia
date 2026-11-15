@@ -22,8 +22,6 @@ import {
 } from "@/lib/horarios";
 
 const BARBEARIA = "barbearia";
-/** Campo de hora: ocupa a largura disponível e pode encolher (min-w-0); no iPhone/letra grande ele é mais largo. */
-const CAMPO_HORA = "w-full min-w-0 tabular-nums";
 const CAMPO =
   "min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:bg-zinc-100 disabled:text-zinc-500";
 const BOTAO_PRIMARIO =
@@ -41,6 +39,44 @@ const semanaValida = (semana: Semana) => semana.every((d) => !d.aberto || d.inic
 type ErroComAfetados = Error & { dados?: { afetados?: Afetado[] } };
 
 const primeiraMaiuscula = (texto: string) => texto.charAt(0).toUpperCase() + texto.slice(1);
+
+/**
+ * Campo de hora com rótulo em cima. No Android o campo de hora tem uma largura mínima
+ * própria (com a setinha) e não encolhe; por isso cada campo tem esse mínimo e, se os dois
+ * não couberem lado a lado, o segundo desce para a linha de baixo em vez de vazar do card.
+ */
+function CampoHora({
+  id,
+  rotulo,
+  descricao,
+  valor,
+  desabilitado = false,
+  onChange,
+}: {
+  id: string;
+  rotulo: string;
+  /** Texto completo para leitor de tela, ex.: "Segunda: abre às". */
+  descricao?: string;
+  valor: string;
+  desabilitado?: boolean;
+  onChange: (valor: string) => void;
+}) {
+  return (
+    <label htmlFor={id} className="flex min-w-[10.5rem] flex-1 flex-col gap-1">
+      <span className="text-sm font-medium text-zinc-700">{rotulo}</span>
+      <input
+        id={id}
+        type="time"
+        value={valor}
+        disabled={desabilitado}
+        aria-label={descricao}
+        onChange={(e) => onChange(e.target.value)}
+        // pr-4: a setinha do Android não fica colada na borda
+        className={`${CAMPO} w-full max-w-full pr-4 tabular-nums`}
+      />
+    </label>
+  );
+}
 
 function TabelaSemana({
   semana,
@@ -70,31 +106,24 @@ function TabelaSemana({
             {dia.aberto ? "Aberto" : "Fechado"}
           </label>
           {dia.aberto && (
-            <span className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:w-auto sm:min-w-64">
-              <label className="sr-only" htmlFor={`semana-${i}-inicio`}>
-                {NOMES_DIAS[i]}: abre às
-              </label>
-              <input
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-1">
+              <CampoHora
                 id={`semana-${i}-inicio`}
-                type="time"
-                value={dia.inicio}
-                disabled={!editavel}
-                onChange={(e) => mudar(i, { inicio: e.target.value })}
-                className={`${CAMPO} ${CAMPO_HORA}`}
+                rotulo="Abre"
+                descricao={`${NOMES_DIAS[i]}: abre às`}
+                valor={dia.inicio}
+                desabilitado={!editavel}
+                onChange={(inicio) => mudar(i, { inicio })}
               />
-              <span aria-hidden="true">até</span>
-              <label className="sr-only" htmlFor={`semana-${i}-fim`}>
-                {NOMES_DIAS[i]}: fecha às
-              </label>
-              <input
+              <CampoHora
                 id={`semana-${i}-fim`}
-                type="time"
-                value={dia.fim}
-                disabled={!editavel}
-                onChange={(e) => mudar(i, { fim: e.target.value })}
-                className={`${CAMPO} ${CAMPO_HORA}`}
+                rotulo="Fecha"
+                descricao={`${NOMES_DIAS[i]}: fecha às`}
+                valor={dia.fim}
+                desabilitado={!editavel}
+                onChange={(fim) => mudar(i, { fim })}
               />
-            </span>
+            </div>
           )}
           {dia.aberto && dia.inicio >= dia.fim && (
             <span className="flex items-center gap-1 text-sm text-red-700">
@@ -407,31 +436,19 @@ export default function HorariosPage() {
                 </div>
               </fieldset>
               {!diaForm.fechado && (
-                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-64">
-                  <div className="min-w-0 space-y-1">
-                    <label htmlFor="dia-inicio" className="block text-sm font-semibold">
-                      Das
-                    </label>
-                    <input
-                      id="dia-inicio"
-                      type="time"
-                      value={diaForm.inicio}
-                      onChange={(e) => setDiaForm((f) => ({ ...f, inicio: e.target.value }))}
-                      className={`${CAMPO} ${CAMPO_HORA}`}
-                    />
-                  </div>
-                  <div className="min-w-0 space-y-1">
-                    <label htmlFor="dia-fim" className="block text-sm font-semibold">
-                      Às
-                    </label>
-                    <input
-                      id="dia-fim"
-                      type="time"
-                      value={diaForm.fim}
-                      onChange={(e) => setDiaForm((f) => ({ ...f, fim: e.target.value }))}
-                      className={`${CAMPO} ${CAMPO_HORA}`}
-                    />
-                  </div>
+                <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+                  <CampoHora
+                    id="dia-inicio"
+                    rotulo="Das"
+                    valor={diaForm.inicio}
+                    onChange={(inicio) => setDiaForm((f) => ({ ...f, inicio }))}
+                  />
+                  <CampoHora
+                    id="dia-fim"
+                    rotulo="Às"
+                    valor={diaForm.fim}
+                    onChange={(fim) => setDiaForm((f) => ({ ...f, fim }))}
+                  />
                 </div>
               )}
             </div>
