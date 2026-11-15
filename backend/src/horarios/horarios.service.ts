@@ -61,7 +61,8 @@ export class HorariosService {
     const [config, profissionais, excecoes] = await Promise.all([
       this.carregarConfig(barbeariaId),
       this.prisma.usuario.findMany({
-        where: { barbeariaId, papel: { in: ['DONO', 'PROFISSIONAL'] } },
+        // Só quem está ativo na Equipe; as regras de quem foi desativado ficam guardadas para se voltar
+        where: { barbeariaId, ativo: true, papel: { in: ['DONO', 'PROFISSIONAL'] } },
         select: { id: true, nome: true, ativo: true },
         orderBy: { criadoEm: 'asc' },
       }),

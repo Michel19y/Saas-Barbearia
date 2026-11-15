@@ -208,3 +208,21 @@ describe('HorariosService', () => {
     });
   });
 });
+
+describe('HorariosService.obter', () => {
+  it('lista só profissionais ativos (desativado na Equipe não aparece em Horários)', async () => {
+    const prisma = {
+      barbearia: { findUnique: vi.fn().mockResolvedValue({ horarioSemanal: null }) },
+      usuario: { findMany: vi.fn().mockResolvedValue([]) },
+      excecaoHorario: { findMany: vi.fn().mockResolvedValue([]) },
+    };
+    const modulo = await Test.createTestingModule({
+      providers: [HorariosService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+
+    await modulo.get(HorariosService).obter('b1');
+
+    const consultaDaTela = prisma.usuario.findMany.mock.calls.find(([args]) => args.select?.nome);
+    expect(consultaDaTela?.[0].where).toMatchObject({ barbeariaId: 'b1', ativo: true });
+  });
+});

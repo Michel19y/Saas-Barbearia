@@ -22,6 +22,8 @@ import {
 } from "@/lib/horarios";
 
 const BARBEARIA = "barbearia";
+/** Campo de hora: ocupa a largura disponível e pode encolher (min-w-0); no iPhone/letra grande ele é mais largo. */
+const CAMPO_HORA = "w-full min-w-0 tabular-nums";
 const CAMPO =
   "min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:bg-zinc-100 disabled:text-zinc-500";
 const BOTAO_PRIMARIO =
@@ -68,7 +70,7 @@ function TabelaSemana({
             {dia.aberto ? "Aberto" : "Fechado"}
           </label>
           {dia.aberto && (
-            <span className="flex items-center gap-2">
+            <span className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:w-auto sm:min-w-64">
               <label className="sr-only" htmlFor={`semana-${i}-inicio`}>
                 {NOMES_DIAS[i]}: abre às
               </label>
@@ -78,7 +80,7 @@ function TabelaSemana({
                 value={dia.inicio}
                 disabled={!editavel}
                 onChange={(e) => mudar(i, { inicio: e.target.value })}
-                className={`${CAMPO} tabular-nums`}
+                className={`${CAMPO} ${CAMPO_HORA}`}
               />
               <span aria-hidden="true">até</span>
               <label className="sr-only" htmlFor={`semana-${i}-fim`}>
@@ -90,7 +92,7 @@ function TabelaSemana({
                 value={dia.fim}
                 disabled={!editavel}
                 onChange={(e) => mudar(i, { fim: e.target.value })}
-                className={`${CAMPO} tabular-nums`}
+                className={`${CAMPO} ${CAMPO_HORA}`}
               />
             </span>
           )}
@@ -369,7 +371,7 @@ export default function HorariosPage() {
           </p>
           <form onSubmit={enviarDia} noValidate className="space-y-4">
             <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1">
+              <div className="w-full space-y-1 sm:w-auto">
                 <label htmlFor="dia-data" className="block text-sm font-semibold">
                   Data
                 </label>
@@ -379,12 +381,12 @@ export default function HorariosPage() {
                   min={hojeNoFuso()}
                   value={diaForm.data}
                   onChange={(e) => setDiaForm((f) => ({ ...f, data: e.target.value }))}
-                  className={CAMPO}
+                  className={`${CAMPO} w-full min-w-0`}
                 />
               </div>
               <fieldset className="space-y-1">
                 <legend className="text-sm font-semibold">Nesse dia</legend>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {[
                     { valor: true, rotulo: "Fechado" },
                     { valor: false, rotulo: "Horário especial" },
@@ -405,8 +407,8 @@ export default function HorariosPage() {
                 </div>
               </fieldset>
               {!diaForm.fechado && (
-                <div className="flex items-end gap-2">
-                  <div className="space-y-1">
+                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-64">
+                  <div className="min-w-0 space-y-1">
                     <label htmlFor="dia-inicio" className="block text-sm font-semibold">
                       Das
                     </label>
@@ -415,10 +417,10 @@ export default function HorariosPage() {
                       type="time"
                       value={diaForm.inicio}
                       onChange={(e) => setDiaForm((f) => ({ ...f, inicio: e.target.value }))}
-                      className={`${CAMPO} tabular-nums`}
+                      className={`${CAMPO} ${CAMPO_HORA}`}
                     />
                   </div>
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-1">
                     <label htmlFor="dia-fim" className="block text-sm font-semibold">
                       Às
                     </label>
@@ -427,7 +429,7 @@ export default function HorariosPage() {
                       type="time"
                       value={diaForm.fim}
                       onChange={(e) => setDiaForm((f) => ({ ...f, fim: e.target.value }))}
-                      className={`${CAMPO} tabular-nums`}
+                      className={`${CAMPO} ${CAMPO_HORA}`}
                     />
                   </div>
                 </div>
