@@ -1,10 +1,13 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+const STATUS_SEM_CONTEUDO = 204;
 
 export async function apiFetch(path: string, options: RequestInit = {}) {
+  // Envio de arquivo: o navegador define o Content-Type multipart com o boundary
+  const ehFormulario = options.body instanceof FormData;
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(ehFormulario ? {} : { "Content-Type": "application/json" }),
       ...options.headers,
     },
   });
@@ -17,6 +20,6 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     throw new Error(message || `Erro ${res.status}`);
   }
 
-  if (res.status === 204) return null;
+  if (res.status === STATUS_SEM_CONTEUDO) return null;
   return res.json();
 }

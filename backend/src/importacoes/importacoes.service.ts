@@ -9,6 +9,10 @@ import {
   parseDataAba,
   parseValorParaCentavos,
 } from './planilha-parser.js';
+import { type Aba, lerAbasDoArquivo } from './planilha-arquivo.js';
+
+/** Duração dada aos serviços que a importação cria (a planilha não informa). */
+const DURACAO_PADRAO_MIN = 30;
 
 @Injectable()
 export class ImportacoesService {
@@ -17,10 +21,21 @@ export class ImportacoesService {
     private readonly googleService: GoogleService,
   ) {}
 
+  /** Importa a partir de uma planilha do Google Sheets (precisa da conta Google conectada). */
   async importarPlanilha(barbeariaId: string, usuarioId: string, dto: ImportarPlanilhaDto) {
     const spreadsheetId = extrairSpreadsheetId(dto.planilha);
     const abas = await this.googleService.lerTodasAbas(usuarioId, spreadsheetId);
+    return this.importarAbas(barbeariaId, abas);
+  }
 
+  /** Importa a partir de um arquivo enviado (.xlsx, .xls, .ods ou .csv); não usa o Google. */
+  async importarArquivo(barbeariaId: string, conteudo: Buffer, nomeArquivo: string) {
+    const abas = lerAbasDoArquivo(conteudo, nomeArquivo);
+    return this.importarAbas(barbeariaId, abas);
+  }
+
+  /** Regra única de importação, igual para Google Sheets e arquivo. */
+  private async importarAbas(barbeariaId: string, abas: Aba[]) {
     let clientesCriados = 0;
     let servicosCriados = 0;
     let atendimentosCriados = 0;
@@ -67,7 +82,7 @@ export class ImportacoesService {
           });
           if (!servico) {
             servico = await this.prisma.servico.create({
-              data: { barbeariaId, nome: servicoNome, duracaoMin: 30, precoCentavos: valorCentavos },
+              data: { barbeariaId, nome: servicoNome, duracaoMin: DURACAO_PADRAO_MIN, precoCentavos: valorCentavos },
             });
             servicosCriados++;
           }
