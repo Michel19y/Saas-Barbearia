@@ -226,3 +226,67 @@ describe('HorariosService.obter', () => {
     expect(consultaDaTela?.[0].where).toMatchObject({ barbeariaId: 'b1', ativo: true });
   });
 });
+
+describe('HorariosService: pausa', () => {
+  it('criar almoço 12h–13h lista quem estava marcado nesse horário', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-14T12:00:00-03:00'));
+    const inicio = new Date('2026-12-10T12:30:00-03:00');
+    const prisma = {
+      barbearia: { findUnique: vi.fn().mockResolvedValue({ horarioSemanal: null }) },
+      usuario: { findMany: vi.fn().mockResolvedValue([{ id: 'ana', horarioSemanal: null }]), findUnique: vi.fn() },
+      excecaoHorario: { findMany: vi.fn().mockResolvedValue([]) },
+      agendamento: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'x1',
+            profissionalId: 'ana',
+            inicio,
+            fim: new Date(inicio.getTime() + 1_800_000),
+            grupoId: null,
+            clienteNome: 'João',
+            cliente: { telefone: '11999990000' },
+            servico: { nome: 'Corte' },
+            profissional: { nome: 'Ana' },
+          },
+        ]),
+      },
+    };
+    const modulo = await Test.createTestingModule({
+      providers: [HorariosService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    const semana = Array.from({ length: DIAS_DA_SEMANA }, () => ({
+      aberto: true,
+      inicio: '09:00',
+      fim: '21:00',
+      pausaInicio: '12:00',
+      pausaFim: '13:00',
+    }));
+
+    const { afetados } = await modulo.get(HorariosService).simular('b1', { tipo: 'semana', semana });
+
+    expect(afetados.map((a) => a.id)).toEqual(['x1']);
+    vi.useRealTimers();
+  });
+
+  it('recusa pausa fora do expediente no dia especial', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-14T12:00:00-03:00'));
+    const modulo = await Test.createTestingModule({
+      providers: [HorariosService, { provide: PrismaService, useValue: {} }],
+    }).compile();
+
+    await expect(
+      modulo.get(HorariosService).simular('b1', {
+        tipo: 'excecao',
+        data: '2026-12-10',
+        fechado: false,
+        inicio: '14:00',
+        fim: '18:00',
+        pausaInicio: '12:00',
+        pausaFim: '13:00',
+      }),
+    ).rejects.toThrow('Pausa inválida');
+    vi.useRealTimers();
+  });
+});

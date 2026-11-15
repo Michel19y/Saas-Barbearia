@@ -162,3 +162,52 @@ describe('semanaValida', () => {
     expect(semanaValida(valor)).toBeNull();
   });
 });
+
+describe('pausa no meio do dia (ex.: almoço)', () => {
+  const comAlmoco = (pausaInicio: string, pausaFim: string) =>
+    SEMANA_DA_BARBEARIA.map((d) => ({ ...d, pausaInicio, pausaFim }));
+  const em = (hora: string) => new Date(`${QUINTA}T${hora}:00-03:00`);
+
+  it('ninguém é atendido durante a pausa da barbearia', () => {
+    const c = config({ barbearia: comAlmoco('12:00', '13:00') });
+    expect(cabeNoExpediente(c, 'ana', em('11:30'), em('12:00'))).toBe(true);
+    expect(cabeNoExpediente(c, 'ana', em('11:30'), em('12:15'))).toBe(false);
+    expect(cabeNoExpediente(c, 'ana', em('12:30'), em('13:00'))).toBe(false);
+    expect(cabeNoExpediente(c, 'ana', em('13:00'), em('13:30'))).toBe(true);
+  });
+
+  it('pausa só do profissional: ele para, os outros seguem atendendo', () => {
+    const c = config({ profissionais: { ana: comAlmoco('12:00', '13:00') } });
+    expect(cabeNoExpediente(c, 'ana', em('12:00'), em('12:30'))).toBe(false);
+    expect(cabeNoExpediente(c, 'bruno', em('12:00'), em('12:30'))).toBe(true);
+  });
+
+  it('pausa da barbearia vale também para quem tem horário próprio', () => {
+    const c = config({
+      barbearia: comAlmoco('12:00', '13:00'),
+      profissionais: { ana: SEMANA_DA_BARBEARIA },
+    });
+    expect(cabeNoExpediente(c, 'ana', em('12:15'), em('12:45'))).toBe(false);
+  });
+
+  it('horário especial do dia com pausa', () => {
+    const c = config({
+      excecoes: [
+        { profissionalId: null, data: QUINTA, fechado: false, inicio: '09:00', fim: '17:00', pausaInicio: '12:00', pausaFim: '13:00' },
+      ],
+    });
+    expect(cabeNoExpediente(c, 'ana', em('12:00'), em('12:30'))).toBe(false);
+    expect(cabeNoExpediente(c, 'ana', em('16:30'), em('17:00'))).toBe(true);
+  });
+
+  it.each([
+    ['sem pausa', null, null, true],
+    ['12:00–13:00', '12:00', '13:00', true],
+    ['pausa fora do expediente', '08:00', '09:30', false],
+    ['início depois do fim', '13:00', '12:00', false],
+    ['só um dos lados', '12:00', null, false],
+  ])('semanaValida com pausa %s', (_, pausaInicio, pausaFim, valida) => {
+    const semana = SEMANA_DA_BARBEARIA.map((d) => ({ ...d, pausaInicio, pausaFim }));
+    expect(semanaValida(semana) !== null).toBe(valida);
+  });
+});

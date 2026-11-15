@@ -81,6 +81,13 @@ describe('PublicoService com horário de funcionamento', () => {
     expect((await service.horariosDisponiveis('loja', 's1', DIA)).length).toBeGreaterThan(0);
   });
 
+  it('pausa do almoço 12h–13h: corte de 30 min não aparece às 12:00 nem às 12:30', async () => {
+    config.excecoes = [
+      { profissionalId: null, data: DIA, fechado: false, inicio: '11:00', fim: '14:00', pausaInicio: '12:00', pausaFim: '13:00' },
+    ];
+    expect(horas(await service.horariosDisponiveis('loja', 's1', DIA))).toEqual(['11:00', '11:30', '13:00', '13:30']);
+  });
+
   it('recusa agendamento fora do expediente mesmo vindo direto pela API', async () => {
     config.excecoes = [{ profissionalId: null, data: DIA, fechado: false, inicio: '14:00', fim: '18:00' }];
 

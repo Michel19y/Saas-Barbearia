@@ -197,6 +197,9 @@ model ExcecaoHorario {
   fechado Boolean
   inicio  String? // "14:00" (só quando aberto)
   fim     String? // "18:00"
+  // Pausa no meio do dia (ex.: almoço), opcional e dentro de inicio–fim
+  pausaInicio String?
+  pausaFim    String?
   motivo  String?
 
   criadoEm DateTime @default(now())

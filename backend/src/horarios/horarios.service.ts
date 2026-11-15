@@ -20,6 +20,7 @@ import {
   diaDaSemana,
   minutos,
   noFuso,
+  pausaValida,
   semanaValida,
 } from './expediente.js';
 
@@ -166,7 +167,7 @@ export class HorariosService {
       const semana = semanaValida(dto.semana);
       if (!semana) {
         throw new BadRequestException(
-          'Horário da semana inválido: use HH:MM e o início antes do fim em cada dia',
+          'Horário da semana inválido: use HH:MM, o início antes do fim e a pausa dentro do expediente',
         );
       }
       return { tipo: 'semana', profissionalId, semana };
@@ -212,12 +213,17 @@ function validarExcecao(dto: MudancaHorarioDto, profissionalId: string | null): 
   if (data < noFuso(new Date()).data) throw new BadRequestException('Essa data já passou');
   const motivo = dto.motivo?.trim() || null;
   if (dto.fechado !== false) {
-    return { profissionalId, data, fechado: true, inicio: null, fim: null, motivo };
+    return { profissionalId, data, fechado: true, inicio: null, fim: null, pausaInicio: null, pausaFim: null, motivo };
   }
   const inicio = dto.inicio ?? '';
   const fim = dto.fim ?? '';
   if (!FORMATO_HORA.test(inicio) || !FORMATO_HORA.test(fim) || minutos(inicio) >= minutos(fim)) {
     throw new BadRequestException('Horário inválido: use HH:MM e o início antes do fim');
   }
-  return { profissionalId, data, fechado: false, inicio, fim, motivo };
+  const pausaInicio = dto.pausaInicio || null;
+  const pausaFim = dto.pausaFim || null;
+  if (!pausaValida(inicio, fim, pausaInicio, pausaFim)) {
+    throw new BadRequestException('Pausa inválida: use HH:MM, o início antes do fim e dentro do expediente');
+  }
+  return { profissionalId, data, fechado: false, inicio, fim, pausaInicio, pausaFim, motivo };
 }

@@ -1,6 +1,13 @@
 /** Tipos e utilidades da tela de horários de funcionamento (espelham backend/src/horarios). */
 
-export type DiaSemana = { aberto: boolean; inicio: string; fim: string };
+/** Um dia da semana; a pausa (ex.: almoço) é opcional e fica dentro do expediente. */
+export type DiaSemana = {
+  aberto: boolean;
+  inicio: string;
+  fim: string;
+  pausaInicio?: string | null;
+  pausaFim?: string | null;
+};
 /** 7 dias, 0 = domingo. */
 export type Semana = DiaSemana[];
 
@@ -12,6 +19,8 @@ export type Excecao = {
   fechado: boolean;
   inicio: string | null;
   fim: string | null;
+  pausaInicio: string | null;
+  pausaFim: string | null;
   motivo: string | null;
 };
 
@@ -30,6 +39,8 @@ export type Mudanca =
       fechado: boolean;
       inicio?: string;
       fim?: string;
+      pausaInicio?: string;
+      pausaFim?: string;
       motivo?: string;
     }
   | { tipo: "remover-excecao"; excecaoId: string };
@@ -88,10 +99,28 @@ export function dataHoraCurta(iso: string): string {
   }).format(new Date(iso));
 }
 
-export const descreverDia = (dia: DiaSemana) => (dia.aberto ? `${dia.inicio}–${dia.fim}` : "Fechado");
+const descreverPausa = (inicio?: string | null, fim?: string | null) => (inicio && fim ? ` · pausa ${inicio}–${fim}` : "");
 
-export function descreverExcecao(e: Pick<Excecao, "fechado" | "inicio" | "fim">): string {
-  return e.fechado ? "Fechado" : `${e.inicio}–${e.fim}`;
+export const descreverDia = (dia: DiaSemana) =>
+  dia.aberto ? `${dia.inicio}–${dia.fim}${descreverPausa(dia.pausaInicio, dia.pausaFim)}` : "Fechado";
+
+export function descreverExcecao(e: Pick<Excecao, "fechado" | "inicio" | "fim" | "pausaInicio" | "pausaFim">): string {
+  return e.fechado ? "Fechado" : `${e.inicio}–${e.fim}${descreverPausa(e.pausaInicio, e.pausaFim)}`;
+}
+
+/** Pausa vazia ou dentro do expediente, com início antes do fim (mesma regra do servidor). */
+export function pausaValida(inicio: string, fim: string, pausaInicio?: string | null, pausaFim?: string | null) {
+  if (!pausaInicio && !pausaFim) return true;
+  if (!pausaInicio || !pausaFim) return false;
+  return pausaInicio < pausaFim && pausaInicio >= inicio && pausaFim <= fim;
+}
+
+/** Erro do dia para mostrar ao lado dos campos; null se estiver tudo certo. */
+export function erroDoDia(dia: DiaSemana): string | null {
+  if (!dia.aberto) return null;
+  if (dia.inicio >= dia.fim) return "O início precisa ser antes do fim";
+  if (!pausaValida(dia.inicio, dia.fim, dia.pausaInicio, dia.pausaFim)) return "A pausa precisa ficar dentro do expediente";
+  return null;
 }
 
 /** A semana com um dia trocado (para transformar "só neste dia" em "toda semana"). */

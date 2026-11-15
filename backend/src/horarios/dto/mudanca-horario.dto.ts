@@ -39,6 +39,15 @@ export class MudancaHorarioDto {
   @IsString()
   fim?: string;
 
+  /** Pausa do dia (ex.: almoço), só com horário especial. */
+  @IsOptional()
+  @IsString()
+  pausaInicio?: string;
+
+  @IsOptional()
+  @IsString()
+  pausaFim?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(MOTIVO_MAX)

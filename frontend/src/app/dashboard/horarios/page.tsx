@@ -19,6 +19,8 @@ import {
   hojeNoFuso,
   semanaComDia,
   todaSemanaDe,
+  erroDoDia,
+  pausaValida,
 } from "@/lib/horarios";
 
 const BARBEARIA = "barbearia";
@@ -30,10 +32,29 @@ const BOTAO_SECUNDARIO =
   "min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 disabled:opacity-60";
 
 type Pendente = { mudanca: Mudanca; descricao: string; afetados: Afetado[] };
-type DiaForm = { data: string; fechado: boolean; inicio: string; fim: string; motivo: string };
+type DiaForm = {
+  data: string;
+  fechado: boolean;
+  inicio: string;
+  fim: string;
+  comPausa: boolean;
+  pausaInicio: string;
+  pausaFim: string;
+  motivo: string;
+};
 
-const diaVazio = (): DiaForm => ({ data: hojeNoFuso(), fechado: true, inicio: "14:00", fim: "18:00", motivo: "" });
-const semanaValida = (semana: Semana) => semana.every((d) => !d.aberto || d.inicio < d.fim);
+/** Sugestão ao ligar a pausa: almoço do meio-dia à uma. */
+const PAUSA_SUGERIDA = { pausaInicio: "12:00", pausaFim: "13:00" };
+const diaVazio = (): DiaForm => ({
+  data: hojeNoFuso(),
+  fechado: true,
+  inicio: "09:00",
+  fim: "18:00",
+  comPausa: false,
+  ...PAUSA_SUGERIDA,
+  motivo: "",
+});
+const semanaValida = (semana: Semana) => semana.every((d) => erroDoDia(d) === null);
 
 /** Erro 409 da API quando a mudança cancelaria agendamentos (o corpo traz a lista). */
 type ErroComAfetados = Error & { dados?: { afetados?: Afetado[] } };
@@ -125,9 +146,45 @@ function TabelaSemana({
               />
             </div>
           )}
-          {dia.aberto && dia.inicio >= dia.fim && (
+          {dia.aberto && (
+            <div className="w-full space-y-2">
+              <label className="flex min-h-11 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={Boolean(dia.pausaInicio)}
+                  disabled={!editavel}
+                  onChange={(e) =>
+                    mudar(i, e.target.checked ? PAUSA_SUGERIDA : { pausaInicio: null, pausaFim: null })
+                  }
+                  className="size-5"
+                />
+                Pausa no meio do dia (ex.: almoço)
+              </label>
+              {dia.pausaInicio && (
+                <div className="flex w-full flex-wrap gap-2">
+                  <CampoHora
+                    id={`semana-${i}-pausa-inicio`}
+                    rotulo="Pausa das"
+                    descricao={`${NOMES_DIAS[i]}: pausa começa às`}
+                    valor={dia.pausaInicio}
+                    desabilitado={!editavel}
+                    onChange={(pausaInicio) => mudar(i, { pausaInicio })}
+                  />
+                  <CampoHora
+                    id={`semana-${i}-pausa-fim`}
+                    rotulo="Volta às"
+                    descricao={`${NOMES_DIAS[i]}: pausa termina às`}
+                    valor={dia.pausaFim ?? ""}
+                    desabilitado={!editavel}
+                    onChange={(pausaFim) => mudar(i, { pausaFim })}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {erroDoDia(dia) && (
             <span className="flex items-center gap-1 text-sm text-red-700">
-              <AlertCircle aria-hidden="true" size={16} /> O início precisa ser antes do fim
+              <AlertCircle aria-hidden="true" size={16} /> {erroDoDia(dia)}
             </span>
           )}
         </li>
@@ -251,13 +308,26 @@ export default function HorariosPage() {
       setErroAcao("O início precisa ser antes do fim.");
       return;
     }
+    if (
+      !diaForm.fechado &&
+      diaForm.comPausa &&
+      !pausaValida(diaForm.inicio, diaForm.fim, diaForm.pausaInicio, diaForm.pausaFim)
+    ) {
+      setErroAcao("A pausa precisa ficar dentro do horário do dia.");
+      return;
+    }
     // A pergunta do alcance: só neste dia ou a regra fixa da semana?
     setPerguntandoAlcance(true);
   }
 
   function aplicarDia(alcance: "dia" | "semana") {
     setPerguntandoAlcance(false);
-    const situacao = diaForm.fechado ? "fechado" : `das ${diaForm.inicio} às ${diaForm.fim}`;
+    const pausa =
+      !diaForm.fechado && diaForm.comPausa
+        ? { pausaInicio: diaForm.pausaInicio, pausaFim: diaForm.pausaFim }
+        : { pausaInicio: null, pausaFim: null };
+    const textoPausa = pausa.pausaInicio ? `, pausa ${pausa.pausaInicio}–${pausa.pausaFim}` : "";
+    const situacao = diaForm.fechado ? "fechado" : `das ${diaForm.inicio} às ${diaForm.fim}${textoPausa}`;
     if (alcance === "dia") {
       void proporMudanca(
         {
@@ -266,6 +336,7 @@ export default function HorariosPage() {
           data: diaForm.data,
           fechado: diaForm.fechado,
           ...(diaForm.fechado ? {} : { inicio: diaForm.inicio, fim: diaForm.fim }),
+          ...(pausa.pausaInicio && pausa.pausaFim ? { pausaInicio: pausa.pausaInicio, pausaFim: pausa.pausaFim } : {}),
           motivo: diaForm.motivo.trim() || undefined,
         },
         `${profissional ? profissional.nome : "Barbearia"}: ${dataCurta(diaForm.data)} ${situacao}`,
@@ -273,11 +344,15 @@ export default function HorariosPage() {
       return;
     }
     if (!semanaAtual) return;
-    const semana = semanaComDia(semanaAtual, diaDaSemana(diaForm.data), {
-      aberto: !diaForm.fechado,
-      inicio: diaForm.fechado ? semanaAtual[diaDaSemana(diaForm.data)].inicio : diaForm.inicio,
-      fim: diaForm.fechado ? semanaAtual[diaDaSemana(diaForm.data)].fim : diaForm.fim,
-    });
+    const atual = semanaAtual[diaDaSemana(diaForm.data)];
+    // Fechado na semana: mantém os horários de antes guardados, para reabrir depois
+    const semana = semanaComDia(
+      semanaAtual,
+      diaDaSemana(diaForm.data),
+      diaForm.fechado
+        ? { ...atual, aberto: false }
+        : { aberto: true, inicio: diaForm.inicio, fim: diaForm.fim, ...pausa },
+    );
     void proporMudanca(
       { tipo: "semana", profissionalId, semana },
       `${profissional ? profissional.nome : "Barbearia"}: ${todaSemanaDe(diaForm.data)} ${situacao}`,
@@ -452,6 +527,35 @@ export default function HorariosPage() {
                 </div>
               )}
             </div>
+            {!diaForm.fechado && (
+              <div className="space-y-2">
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={diaForm.comPausa}
+                    onChange={(e) => setDiaForm((f) => ({ ...f, comPausa: e.target.checked }))}
+                    className="size-5"
+                  />
+                  Pausa no meio do dia (ex.: almoço)
+                </label>
+                {diaForm.comPausa && (
+                  <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+                    <CampoHora
+                      id="dia-pausa-inicio"
+                      rotulo="Pausa das"
+                      valor={diaForm.pausaInicio}
+                      onChange={(pausaInicio) => setDiaForm((f) => ({ ...f, pausaInicio }))}
+                    />
+                    <CampoHora
+                      id="dia-pausa-fim"
+                      rotulo="Volta às"
+                      valor={diaForm.pausaFim}
+                      onChange={(pausaFim) => setDiaForm((f) => ({ ...f, pausaFim }))}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-1">
               <label htmlFor="dia-motivo" className="block text-sm font-semibold">
                 Motivo <span className="font-normal text-zinc-600">(opcional, só para você)</span>

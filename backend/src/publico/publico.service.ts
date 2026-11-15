@@ -5,6 +5,7 @@ import { barbeariaPorSlug } from '../common/slug-barbearia.js';
 import { HorariosService } from '../horarios/horarios.service.js';
 import {
   FORMATO_DATA,
+  cabeNaJanela,
   cabeNoExpediente,
   instante,
   janelaDoProfissional,
@@ -116,8 +117,8 @@ export class PublicoService {
       .filter((minuto) =>
         janelas.some(
           (j) =>
-            minuto >= j.inicioMin &&
-            minuto + duracaoTotal <= j.fimMin &&
+            // Dentro do expediente e sem encostar na pausa (ex.: almoço)
+            cabeNaJanela(j, minuto, minuto + duracaoTotal) &&
             this.estaLivre(
               agendamentosDoDia,
               j.profissionalId,

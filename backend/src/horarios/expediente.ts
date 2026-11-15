@@ -11,7 +11,14 @@
  * Horários são do fuso da barbearia (Brasília).
  */
 
-export type DiaSemana = { aberto: boolean; inicio: string; fim: string };
+/** Um dia da semana. A pausa (ex.: almoço) é opcional e fica dentro do expediente. */
+export type DiaSemana = {
+  aberto: boolean;
+  inicio: string;
+  fim: string;
+  pausaInicio?: string | null;
+  pausaFim?: string | null;
+};
 /** 7 posições: 0 = domingo … 6 = sábado (igual ao Date#getDay). */
 export type Semana = DiaSemana[];
 
@@ -22,6 +29,8 @@ export type Excecao = {
   fechado: boolean;
   inicio: string | null;
   fim: string | null;
+  pausaInicio?: string | null;
+  pausaFim?: string | null;
   motivo?: string | null;
 };
 
@@ -33,8 +42,9 @@ export type ConfigExpediente = {
   excecoes: Excecao[];
 };
 
-/** Janela do dia em minutos desde a meia-noite; null = fechado. */
-export type Janela = { inicioMin: number; fimMin: number } | null;
+type Intervalo = { inicioMin: number; fimMin: number };
+/** Janela do dia em minutos desde a meia-noite, com as pausas em que ninguém é atendido; null = fechado. */
+export type Janela = (Intervalo & { pausas: Intervalo[] }) | null;
 
 export const DIAS_DA_SEMANA = 7;
 const ABERTURA_PADRAO = '09:00';
@@ -92,6 +102,22 @@ export function noFuso(momento: Date): { data: string; minutos: number } {
   return { data, minutos: local.getUTCHours() * MINUTOS_NA_HORA + local.getUTCMinutes() };
 }
 
+/**
+ * Pausa válida: sem pausa (os dois vazios) ou "HH:MM"–"HH:MM" com início antes do fim,
+ * inteira dentro do expediente [inicio, fim].
+ */
+export function pausaValida(
+  inicio: string,
+  fim: string,
+  pausaInicio: string | null | undefined,
+  pausaFim: string | null | undefined,
+): boolean {
+  if (!pausaInicio && !pausaFim) return true;
+  if (!FORMATO_HORA.test(String(pausaInicio)) || !FORMATO_HORA.test(String(pausaFim))) return false;
+  const [pi, pf] = [minutos(String(pausaInicio)), minutos(String(pausaFim))];
+  return pi < pf && pi >= minutos(inicio) && pf <= minutos(fim);
+}
+
 /** Semana guardada no banco (JSON) só é usada se tiver o formato certo; senão vale o padrão. */
 export function semanaValida(valor: unknown): Semana | null {
   if (!Array.isArray(valor) || valor.length !== DIAS_DA_SEMANA) return null;
@@ -101,26 +127,43 @@ export function semanaValida(valor: unknown): Semana | null {
       typeof d.aberto === 'boolean' &&
       FORMATO_HORA.test(String(d.inicio)) &&
       FORMATO_HORA.test(String(d.fim)) &&
-      minutos(d.inicio) < minutos(d.fim),
+      minutos(d.inicio) < minutos(d.fim) &&
+      pausaValida(d.inicio, d.fim, d.pausaInicio, d.pausaFim),
   );
   return ok ? (valor as Semana) : null;
 }
 
+function pausasDe(pausaInicio: string | null | undefined, pausaFim: string | null | undefined): Intervalo[] {
+  if (!pausaInicio || !pausaFim) return [];
+  return [{ inicioMin: minutos(pausaInicio), fimMin: minutos(pausaFim) }];
+}
+
 function janelaDoDia(dia: DiaSemana | undefined): Janela {
   if (!dia?.aberto) return null;
-  return { inicioMin: minutos(dia.inicio), fimMin: minutos(dia.fim) };
+  return { inicioMin: minutos(dia.inicio), fimMin: minutos(dia.fim), pausas: pausasDe(dia.pausaInicio, dia.pausaFim) };
 }
 
 function janelaDaExcecao(excecao: Excecao): Janela {
   if (excecao.fechado || !excecao.inicio || !excecao.fim) return null;
-  return { inicioMin: minutos(excecao.inicio), fimMin: minutos(excecao.fim) };
+  return {
+    inicioMin: minutos(excecao.inicio),
+    fimMin: minutos(excecao.fim),
+    pausas: pausasDe(excecao.pausaInicio, excecao.pausaFim),
+  };
 }
 
 function intersecao(a: Janela, b: Janela): Janela {
   if (!a || !b) return null;
   const inicioMin = Math.max(a.inicioMin, b.inicioMin);
   const fimMin = Math.min(a.fimMin, b.fimMin);
-  return inicioMin < fimMin ? { inicioMin, fimMin } : null;
+  // Pausa da barbearia e pausa do profissional valem as duas
+  return inicioMin < fimMin ? { inicioMin, fimMin, pausas: [...a.pausas, ...b.pausas] } : null;
+}
+
+/** [inicioMin, fimMin) cabe na janela e não encosta em nenhuma pausa? */
+export function cabeNaJanela(janela: Janela, inicioMin: number, fimMin: number): boolean {
+  if (!janela || inicioMin < janela.inicioMin || fimMin > janela.fimMin) return false;
+  return !janela.pausas.some((p) => inicioMin < p.fimMin && fimMin > p.inicioMin);
 }
 
 const excecaoDe = (config: ConfigExpediente, profissionalId: string | null, data: string) =>
@@ -144,7 +187,7 @@ export function janelaDoProfissional(config: ConfigExpediente, profissionalId: s
   return intersecao(daBarbearia, janelaDoDia(semanaPropria[diaDaSemana(data)]));
 }
 
-/** O atendimento [inicio, fim) cabe inteiro no expediente do profissional? */
+/** O atendimento [inicio, fim) cabe inteiro no expediente do profissional, fora das pausas? */
 export function cabeNoExpediente(
   config: ConfigExpediente,
   profissionalId: string,
@@ -155,7 +198,7 @@ export function cabeNoExpediente(
   const janela = janelaDoProfissional(config, profissionalId, data);
   if (!janela) return false;
   const fimMin = inicioMin + (fim.getTime() - inicio.getTime()) / MS_POR_MINUTO;
-  return inicioMin >= janela.inicioMin && fimMin <= janela.fimMin;
+  return cabeNaJanela(janela, inicioMin, fimMin);
 }
 
 // ---------- mudanças ----------
