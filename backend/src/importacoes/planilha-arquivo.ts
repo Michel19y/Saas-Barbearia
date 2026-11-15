@@ -2,7 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { extname, basename } from 'node:path';
 import * as XLSX from 'xlsx';
 
-export type Aba = { titulo: string; linhas: string[][] };
+import type { Aba } from './planilha-parser.js';
+export type { Aba };
 
 export const EXTENSOES_ACEITAS = ['.xlsx', '.xls', '.ods', '.csv'] as const;
 const BYTES_POR_KB = 1024;
@@ -54,6 +55,8 @@ function linhasComoTexto(aba: XLSX.WorkSheet): string[][] {
  */
 export function lerAbasDoArquivo(conteudo: Buffer, nomeArquivo: string): Aba[] {
   if (!extensaoAceita(nomeArquivo)) throw new BadRequestException(MENSAGEM_FORMATO);
+  // O leitor "abre" um arquivo vazio como planilha em branco; melhor avisar
+  if (conteudo.length === 0) throw new BadRequestException(MENSAGEM_ILEGIVEL);
   const ehCsv = extname(nomeArquivo).toLowerCase() === '.csv';
 
   let planilha: XLSX.WorkBook;

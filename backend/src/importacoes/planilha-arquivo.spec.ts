@@ -1,7 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 import { lerAbasDoArquivo } from './planilha-arquivo.js';
-import { encontrarBlocosDeProfissional, parseDataAba } from './planilha-parser.js';
+import { analisarPlanilha, parseDataAba } from './planilha-parser.js';
+
+/** Linhas lidas como "hora|serviço|cliente", no formato que a importação vai gravar. */
+const lidas = (abas: Parameters<typeof analisarPlanilha>[0]) =>
+  analisarPlanilha(abas).linhas.map((l) => `${l.profissional}|${l.servico}|${l.cliente}`);
 
 // 09:00 e 09:30 como o Excel guarda uma hora digitada: fração do dia com formato de hora
 const HORAS_NO_DIA = 24;
@@ -38,12 +42,10 @@ describe('lerAbasDoArquivo', () => {
       const abas = lerAbasDoArquivo(planilhaComHoraReal(tipo), `agenda.${tipo}`);
 
       expect(abas.map((a) => a.titulo)).toEqual(['10-11-2026', 'Resumo']);
-      const [bloco] = encontrarBlocosDeProfissional(abas[0].linhas);
-      expect(bloco.profissional).toBe('Henrique');
-      expect(bloco.linhas).toEqual([
-        { horario: '09:00', tipoServico: 'Corte', cliente: 'João Silva', entrada: '45,00', fp: 'P' },
-        { horario: '09:30', tipoServico: 'Barba', cliente: 'Pedro Alves', entrada: 'R$ 30,00', fp: 'D' },
-      ]);
+      const [, , primeira, segunda] = abas[0].linhas;
+      expect(primeira).toEqual(['09:00', 'Corte', 'João Silva', '45,00', 'P']);
+      expect(segunda).toEqual(['09:30', 'Barba', 'Pedro Alves', 'R$ 30,00', 'D']);
+      expect(lidas(abas)).toEqual(['Henrique|Corte|João Silva', 'Henrique|Barba|Pedro Alves']);
     },
   );
 
@@ -59,11 +61,13 @@ describe('lerAbasDoArquivo', () => {
 
     expect(aba.titulo).toBe('10-11-2026');
     expect(parseDataAba(aba.titulo)).not.toBeNull();
-    const [bloco] = encontrarBlocosDeProfissional(aba.linhas);
-    expect(bloco.linhas.map((l) => [l.horario, l.cliente, l.entrada])).toEqual([
+    // Os valores chegam como texto, do jeito que estão no arquivo (sem virar número)
+    const [, , ...atendimentos] = aba.linhas;
+    expect(atendimentos.map((l) => [l[0], l[2], l[3]])).toEqual([
       ['09:00', 'João Silva', '45,00'],
       ['10:30', 'Lucas Rocha', 'R$ 1.234,50'],
     ]);
+    expect(lidas([aba])).toEqual(['Henrique|Corte|João Silva', 'Henrique|Barba|Lucas Rocha']);
   });
 
   it('mantém linhas vazias para o cabeçalho continuar abaixo do nome do profissional', () => {
@@ -73,7 +77,7 @@ describe('lerAbasDoArquivo', () => {
     const buffer = XLSX.write(livro, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 
     const [lida] = lerAbasDoArquivo(buffer, 'x.xlsx');
-    expect(encontrarBlocosDeProfissional(lida.linhas)[0].profissional).toBe('Carlos');
+    expect(lidas([lida])).toEqual(['Carlos|Corte|Davi']);
   });
 
   it('recusa extensão não suportada', () => {

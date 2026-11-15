@@ -17,6 +17,8 @@ describe('POST /importacoes/arquivo', () => {
   const service = {
     importarArquivo: vi.fn(),
     importarPlanilha: vi.fn(),
+    previaArquivo: vi.fn(),
+    previaPlanilha: vi.fn(),
   };
 
   beforeAll(async () => {
@@ -56,6 +58,26 @@ describe('POST /importacoes/arquivo', () => {
     expect(barbeariaId).toBe('b1');
     expect(Buffer.isBuffer(conteudo)).toBe(true);
     expect(nome).toBe('agenda.xlsx');
+  });
+
+  it('a prévia usa o mesmo envio de arquivo e não importa', async () => {
+    service.previaArquivo.mockResolvedValue({ resumo: { atendimentos: 1 } });
+
+    await request(app.getHttpServer())
+      .post('/importacoes/arquivo/previa')
+      .attach('arquivo', Buffer.from('x'), 'agenda.xlsx')
+      .expect(STATUS_CRIADO)
+      .expect({ resumo: { atendimentos: 1 } });
+
+    expect(service.previaArquivo.mock.calls[0][0]).toBe('b1');
+    expect(service.importarArquivo).not.toHaveBeenCalled();
+  });
+
+  it('a prévia também recusa extensão errada', async () => {
+    await request(app.getHttpServer())
+      .post('/importacoes/arquivo/previa')
+      .attach('arquivo', Buffer.from('x'), 'foto.png')
+      .expect(STATUS_INVALIDO);
   });
 
   it('mantém acentos no nome do arquivo', async () => {

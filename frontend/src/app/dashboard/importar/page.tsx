@@ -2,12 +2,32 @@
 
 import { useEffect, useRef, useState } from "react";
 import { authFetch } from "@/lib/auth";
+import PreviaImportacaoPainel, { type PreviaImportacao } from "@/components/PreviaImportacao";
 
 // Mesmo limite do backend (planilha-arquivo.ts)
 const TAMANHO_MAXIMO_MB = 5;
 const BYTES_POR_MB = 1_048_576;
 const TAMANHO_MAXIMO_BYTES = TAMANHO_MAXIMO_MB * BYTES_POR_MB;
 const EXTENSOES_ACEITAS = ".xlsx,.xls,.ods,.csv";
+
+/** De onde vem a planilha: o mesmo arquivo/link é usado na prévia e na importação. */
+type Origem = { tipo: "arquivo"; arquivo: File } | { tipo: "google"; planilha: string };
+
+const ROTAS = {
+  arquivo: { previa: "/importacoes/arquivo/previa", importar: "/importacoes/arquivo" },
+  google: { previa: "/importacoes/planilha/previa", importar: "/importacoes/planilha" },
+} as const;
+
+function corpoDaRequisicao(origem: Origem): BodyInit {
+  if (origem.tipo === "google") return JSON.stringify({ planilha: origem.planilha });
+  const corpo = new FormData();
+  corpo.append("arquivo", origem.arquivo);
+  return corpo;
+}
+
+function enviar(origem: Origem, etapa: "previa" | "importar") {
+  return authFetch(ROTAS[origem.tipo][etapa], { method: "POST", body: corpoDaRequisicao(origem) });
+}
 
 type ResultadoImportacao = {
   clientesCriados: number;
@@ -22,7 +42,9 @@ export default function ImportarPage() {
   const [importando, setImportando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoImportacao | null>(null);
-  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [origem, setOrigem] = useState<Origem | null>(null);
+  const [previa, setPrevia] = useState<PreviaImportacao | null>(null);
+  const [carregandoPrevia, setCarregandoPrevia] = useState(false);
   const campoArquivo = useRef<HTMLInputElement>(null);
 
   async function verificarConexao() {
@@ -71,39 +93,42 @@ export default function ImportarPage() {
     }
   }
 
-  async function handleImportarArquivo() {
-    if (!arquivo) return;
+  function limpar() {
+    setPrevia(null);
+    setOrigem(null);
+    if (campoArquivo.current) campoArquivo.current.value = "";
+  }
+
+  /** Passo 1: lê e analisa a planilha, sem gravar nada. */
+  async function gerarPrevia(nova: Origem) {
     setErro(null);
     setResultado(null);
-    if (arquivo.size > TAMANHO_MAXIMO_BYTES) {
+    setPrevia(null);
+    if (nova.tipo === "arquivo" && nova.arquivo.size > TAMANHO_MAXIMO_BYTES) {
       setErro(`O arquivo passa de ${TAMANHO_MAXIMO_MB} MB. Divida a planilha e envie em partes.`);
+      limpar();
       return;
     }
-    setImportando(true);
+    setCarregandoPrevia(true);
     try {
-      const corpo = new FormData();
-      corpo.append("arquivo", arquivo);
-      const data = await authFetch("/importacoes/arquivo", { method: "POST", body: corpo });
-      setResultado(data);
-      setArquivo(null);
-      if (campoArquivo.current) campoArquivo.current.value = "";
+      setPrevia((await enviar(nova, "previa")) as PreviaImportacao);
+      setOrigem(nova);
     } catch (err) {
-      setErro(err instanceof Error ? err.message : "Erro ao importar o arquivo");
+      setErro(err instanceof Error ? err.message : "Não consegui ler a planilha");
+      limpar();
     } finally {
-      setImportando(false);
+      setCarregandoPrevia(false);
     }
   }
 
-  async function handleImportar() {
+  /** Passo 2: grava o que a prévia mostrou (mesmo arquivo/link, mesma análise). */
+  async function confirmarImportacao() {
+    if (!origem) return;
     setErro(null);
-    setResultado(null);
     setImportando(true);
     try {
-      const data = await authFetch("/importacoes/planilha", {
-        method: "POST",
-        body: JSON.stringify({ planilha }),
-      });
-      setResultado(data);
+      setResultado((await enviar(origem, "importar")) as ResultadoImportacao);
+      limpar();
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Erro ao importar planilha");
     } finally {
@@ -111,14 +136,17 @@ export default function ImportarPage() {
     }
   }
 
+  const ocupado = carregandoPrevia || importando;
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold">Importar planilha</h1>
         <p className="text-sm text-zinc-500">
-          Traga o histórico de atendimentos de uma planilha. Cada aba é tratada
-          como um dia (nome da aba = data, ex.: 10-11-2026), e cada bloco de
-          colunas HORARIO/TIPO DO SERVIÇO/CLIENTE/ENTRADA/FP é um profissional.
+          Traga o histórico de atendimentos de uma planilha. Cada aba é um dia (a data
+          fica no nome da aba, ex.: 10-11-2026 ou 10/11) e cada profissional tem seu
+          bloco de colunas: horário, cliente, serviço, valor e forma de pagamento, em
+          qualquer ordem. Antes de gravar, você vê uma prévia.
         </p>
       </div>
 
@@ -137,17 +165,14 @@ export default function ImportarPage() {
             ref={campoArquivo}
             type="file"
             accept={EXTENSOES_ACEITAS}
-            onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-zinc-300 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-zinc-50"
+            disabled={ocupado}
+            onChange={(e) => {
+              const escolhido = e.target.files?.[0];
+              if (escolhido) void gerarPrevia({ tipo: "arquivo", arquivo: escolhido });
+            }}
+            className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-zinc-300 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-zinc-50 disabled:opacity-50"
           />
         </div>
-        <button
-          onClick={handleImportarArquivo}
-          disabled={importando || !arquivo}
-          className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
-        >
-          {importando && arquivo ? "Importando..." : "Importar arquivo"}
-        </button>
       </div>
 
       <h2 className="text-base font-semibold">Ou importe do Google Sheets</h2>
@@ -172,10 +197,11 @@ export default function ImportarPage() {
             Conta Google conectada.
           </p>
           <div className="space-y-1">
-            <label className="text-xs text-zinc-500">
+            <label htmlFor="importar-link" className="text-xs text-zinc-500">
               Link ou ID da planilha
             </label>
             <input
+              id="importar-link"
               value={planilha}
               onChange={(e) => setPlanilha(e.target.value)}
               placeholder="https://docs.google.com/spreadsheets/d/..."
@@ -183,19 +209,38 @@ export default function ImportarPage() {
             />
           </div>
           <button
-            onClick={handleImportar}
-            disabled={importando || !planilha}
+            onClick={() => void gerarPrevia({ tipo: "google", planilha: planilha.trim() })}
+            disabled={ocupado || !planilha.trim()}
             className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
           >
-            {importando ? "Importando..." : "Importar todas as abas"}
+            Ver prévia
           </button>
         </div>
       )}
 
-      {erro && <p className="text-sm text-red-600">{erro}</p>}
+      {carregandoPrevia && (
+        <p role="status" className="text-sm text-zinc-600">
+          Lendo a planilha…
+        </p>
+      )}
+
+      {erro && (
+        <p role="alert" className="text-sm text-red-600">
+          {erro}
+        </p>
+      )}
+
+      {previa && (
+        <PreviaImportacaoPainel
+          previa={previa}
+          importando={importando}
+          onConfirmar={() => void confirmarImportacao()}
+          onCancelar={limpar}
+        />
+      )}
 
       {resultado && (
-        <div className="space-y-2 rounded-md border border-zinc-200 p-4 text-sm">
+        <div role="status" className="space-y-2 rounded-md border border-zinc-200 p-4 text-sm">
           <p className="font-medium">Importação concluída</p>
           <p className="text-zinc-500">
             {resultado.clientesCriados} clientes novos · {resultado.servicosCriados}{" "}
@@ -205,8 +250,8 @@ export default function ImportarPage() {
             <div className="space-y-1">
               <p className="text-amber-600">Avisos:</p>
               <ul className="list-inside list-disc text-zinc-500">
-                {resultado.avisos.map((a, i) => (
-                  <li key={i}>{a}</li>
+                {resultado.avisos.map((a) => (
+                  <li key={a}>{a}</li>
                 ))}
               </ul>
             </div>
