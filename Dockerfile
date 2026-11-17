@@ -36,6 +36,8 @@ COPY --from=backend-build /app/backend/node_modules ./backend/node_modules
 COPY --from=backend-build /app/backend/dist ./backend/dist
 COPY --from=backend-build /app/backend/package.json ./backend/package.json
 COPY --from=backend-build /app/backend/prisma ./backend/prisma
+# O Prisma 7 le a DATABASE_URL daqui; sem ele o `prisma migrate deploy` do start.sh nao roda
+COPY --from=backend-build /app/backend/prisma.config.ts ./backend/prisma.config.ts
 
 COPY --from=frontend-build /app/frontend/.next/standalone ./frontend
 COPY --from=frontend-build /app/frontend/.next/static ./frontend/.next/static

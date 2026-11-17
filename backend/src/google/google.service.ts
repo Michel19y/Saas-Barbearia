@@ -4,6 +4,10 @@ import { JwtService } from '@nestjs/jwt';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 
+export const GOOGLE_STATE_AUDIENCE = 'google-oauth-state';
+/** Tempo que o usuário tem para concluir a autorização no Google (10 minutos). */
+export const GOOGLE_STATE_EXPIRA_SEGUNDOS = 600;
+
 @Injectable()
 export class GoogleService {
   constructor(
@@ -22,7 +26,7 @@ export class GoogleService {
 
   gerarUrlAutorizacao(usuarioId: string) {
     const client = this.criarOAuthClient();
-    const state = this.jwtService.sign({ sub: usuarioId }, { expiresIn: 600 });
+    const state = this.jwtService.sign({ sub: usuarioId });
     return client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
