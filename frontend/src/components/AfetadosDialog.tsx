@@ -63,7 +63,7 @@ export default function AfetadosDialog({
         e.preventDefault();
         if (!aplicando) onFechar();
       }}
-      className="m-auto max-h-[92dvh] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-xl border-0 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-zinc-950/40"
+      className="m-auto max-h-[92dvh] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-xl border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-zinc-950/40"
     >
       <div className="space-y-4 p-5">
         <header className="space-y-1">

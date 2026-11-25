@@ -3,18 +3,29 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import {
+  CalendarClock,
+  Clock,
+  Menu,
+  Scissors,
+  Settings,
+  Upload,
+  Users,
+  UserSquare2,
+  Wallet,
+  X,
+} from "lucide-react";
 import { authFetch, getToken, clearToken, decodeToken } from "@/lib/auth";
 
 const LINKS = [
-  { href: "/dashboard/servicos", label: "Serviços" },
-  { href: "/dashboard/clientes", label: "Clientes" },
-  { href: "/dashboard/agendamentos", label: "Agendamentos" },
-  { href: "/dashboard/equipe", label: "Equipe" },
-  { href: "/dashboard/horarios", label: "Horários" },
-  { href: "/dashboard/financeiro", label: "Financeiro" },
-  { href: "/dashboard/importar", label: "Importar" },
-  { href: "/dashboard/configuracoes", label: "Configurações" },
+  { href: "/dashboard/servicos", label: "Serviços", icon: Scissors },
+  { href: "/dashboard/clientes", label: "Clientes", icon: Users },
+  { href: "/dashboard/agendamentos", label: "Agendamentos", icon: CalendarClock },
+  { href: "/dashboard/equipe", label: "Equipe", icon: UserSquare2 },
+  { href: "/dashboard/horarios", label: "Horários", icon: Clock },
+  { href: "/dashboard/financeiro", label: "Financeiro", icon: Wallet },
+  { href: "/dashboard/importar", label: "Importar", icon: Upload },
+  { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings },
 ];
 
 export default function DashboardLayout({
@@ -94,10 +105,11 @@ export default function DashboardLayout({
                 href={link.href}
                 className={
                   pathname.startsWith(link.href)
-                    ? "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-md px-2 font-semibold text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
-                    : "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-md px-2 text-zinc-700 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    ? "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 font-semibold text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    : "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-zinc-700 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
                 }
               >
+                <link.icon aria-hidden="true" size={16} />
                 {link.label}
               </Link>
             ))}
@@ -134,10 +146,11 @@ export default function DashboardLayout({
                 href={link.href}
                 className={
                   pathname.startsWith(link.href)
-                    ? "block min-h-11 rounded-md px-3 py-2 text-base font-semibold leading-6 text-zinc-950 bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
-                    : "block min-h-11 rounded-md px-3 py-2 text-base leading-6 text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    ? "flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-base font-semibold leading-6 text-zinc-950 bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    : "flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-base leading-6 text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
                 }
               >
+                <link.icon aria-hidden="true" size={18} />
                 {link.label}
               </Link>
             ))}
