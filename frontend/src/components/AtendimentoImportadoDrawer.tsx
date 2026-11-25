@@ -58,7 +58,7 @@ function textoParaCentavos(texto: string) {
 }
 
 const campoClasse =
-  "min-h-11 w-full rounded-md border border-zinc-300 px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2";
+  "min-h-11 w-full rounded-md border border-zinc-300 px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2";
 
 function MensagemErro({ id, texto }: { id: string; texto?: string }) {
   if (!texto) return null;
@@ -207,7 +207,7 @@ export default function AtendimentoImportadoDrawer({
             type="button"
             onClick={fechar}
             aria-label="Fechar formulário"
-            className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             <X aria-hidden="true" size={20} />
           </button>
@@ -401,7 +401,7 @@ export default function AtendimentoImportadoDrawer({
                 <button
                   type="submit"
                   disabled={ocupado}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {salvando && <Loader2 aria-hidden="true" size={20} className="animate-spin motion-reduce:animate-none" />}
                   {salvando ? "Salvando…" : "Salvar correção"}

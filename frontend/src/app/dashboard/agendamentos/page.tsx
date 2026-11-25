@@ -51,7 +51,7 @@ const STATUS_OPCOES = [
 type FiltroStatus = StatusAgendamento | "TODOS";
 
 const BOTAO_ICONICO =
-  "flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2";
+  "flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2";
 
 function normalizar(valor: string) {
   return valor
@@ -129,7 +129,7 @@ function StatusSelect({
         );
         if (status) onChange(status, event.currentTarget);
       }}
-      className="campo-select min-h-11 max-w-full rounded-md border border-zinc-300 bg-white px-2 text-base leading-6 text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:opacity-70"
+      className="campo-select min-h-11 max-w-full rounded-md border border-zinc-300 bg-white px-2 text-base leading-6 text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 disabled:opacity-70"
     >
       {STATUS_OPCOES.map((status) => (
         <option key={status} value={status}>
@@ -828,7 +828,7 @@ export default function AgendamentosPage() {
           type="button"
           onClick={(event) => abrirDrawer(null, event.currentTarget)}
           disabled={carregando || Boolean(erroCarga)}
-          className="hidden min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 md:flex"
+          className="hidden min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 md:flex"
         >
           <Plus aria-hidden="true" size={20} />
           Novo agendamento
@@ -846,7 +846,7 @@ export default function AgendamentosPage() {
             type="button"
             aria-label="Fechar mensagem de erro"
             onClick={() => setErroAcao(null)}
-            className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-red-800 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-red-800 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             <X aria-hidden="true" size={20} />
           </button>
@@ -877,7 +877,7 @@ export default function AgendamentosPage() {
                 onChange={(event) =>
                   setDiaSelecionado(event.target.value || null)
                 }
-                className="min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                className="min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
               />
             </div>
             <button
@@ -892,7 +892,7 @@ export default function AgendamentosPage() {
                   ? "Mostrar todos os dias"
                   : "Mostrar agendamentos de hoje"
               }
-              className="min-h-11 shrink-0 rounded-md border border-zinc-300 px-3 py-2 text-base font-semibold text-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="min-h-11 shrink-0 rounded-md border border-zinc-300 px-3 py-2 text-base font-semibold text-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               {diaSelecionado === hoje ? "Ver todos" : "Hoje"}
             </button>
@@ -907,7 +907,7 @@ export default function AgendamentosPage() {
               onChange={(event) =>
                 setFiltroStatus(event.target.value as FiltroStatus)
               }
-              className="campo-select min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="campo-select min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               <option value="TODOS">Todos os status</option>
               {STATUS_OPCOES.map((status) => (
@@ -961,7 +961,7 @@ export default function AgendamentosPage() {
             <button
               type="button"
               onClick={() => void carregar()}
-              className="mt-4 min-h-11 rounded-md border border-zinc-300 bg-white px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="mt-4 min-h-11 rounded-md border border-zinc-300 bg-white px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               Tentar novamente
             </button>
@@ -983,7 +983,7 @@ export default function AgendamentosPage() {
             <button
               type="button"
               onClick={(event) => abrirDrawer(null, event.currentTarget)}
-              className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               <Plus aria-hidden="true" size={20} />
               Criar primeiro agendamento
@@ -1003,7 +1003,7 @@ export default function AgendamentosPage() {
                 setFiltroStatus("TODOS");
                 setDiaSelecionado(null);
               }}
-              className="mt-4 min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="mt-4 min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               Ver todos os agendamentos
             </button>
@@ -1043,7 +1043,7 @@ export default function AgendamentosPage() {
                                 abrirDrawer(primeiro, event.currentTarget)
                               }
                               aria-label={`Editar agendamento de ${nomeCliente(primeiro)}`}
-                              className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                              className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                             />
                           )}
                           <div className="relative z-10 pointer-events-none flex items-start gap-3">
@@ -1128,7 +1128,7 @@ export default function AgendamentosPage() {
                                         event.currentTarget,
                                       )
                                     }
-                                    className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                                    className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                                   >
                                     Concluir todos
                                   </button>
@@ -1337,7 +1337,7 @@ export default function AgendamentosPage() {
                                         event.currentTarget,
                                       )
                                     }
-                                    className="min-h-11 shrink-0 whitespace-nowrap rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                                    className="min-h-11 shrink-0 whitespace-nowrap rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                                   >
                                     Concluir todos
                                   </button>
@@ -1386,7 +1386,7 @@ export default function AgendamentosPage() {
           type="button"
           onClick={(event) => abrirDrawer(null, event.currentTarget)}
           disabled={carregando || Boolean(erroCarga)}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
         >
           <Plus aria-hidden="true" size={20} />
           Novo agendamento

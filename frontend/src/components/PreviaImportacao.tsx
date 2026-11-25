@@ -232,7 +232,7 @@ export default function PreviaImportacaoPainel({
           type="button"
           onClick={onConfirmar}
           disabled={importando || nadaParaImportar}
-          className="flex min-h-11 items-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-11 items-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {importando && <Loader2 aria-hidden="true" size={16} className="animate-spin motion-reduce:animate-none" />}
           {nadaParaImportar

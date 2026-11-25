@@ -89,7 +89,7 @@ export default function DashboardLayout({
             aria-expanded={menuAberto}
             aria-controls="menu-dashboard-mobile"
             aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}
-            className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 md:hidden"
+            className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 md:hidden"
           >
             {menuAberto ? (
               <X aria-hidden="true" size={22} />
@@ -105,8 +105,8 @@ export default function DashboardLayout({
                 href={link.href}
                 className={
                   pathname.startsWith(link.href)
-                    ? "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 font-semibold text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
-                    : "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-zinc-700 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    ? "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border-b-2 border-amber-500 px-2 font-semibold text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+                    : "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border-b-2 border-transparent px-2 text-zinc-700 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                 }
               >
                 <link.icon aria-hidden="true" size={16} />
@@ -119,7 +119,7 @@ export default function DashboardLayout({
             {(nome || papel) && (
               <Link
                 href="/dashboard/perfil"
-                className="rounded-md px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                className="rounded-md px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
               >
                 {nome ? <span className="font-semibold">{nome}</span> : null}
                 {nome && papel ? " · " : null}
@@ -128,7 +128,7 @@ export default function DashboardLayout({
             )}
             <button
               onClick={handleLogout}
-              className="min-h-11 rounded-md border border-zinc-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="min-h-11 rounded-md border border-zinc-300 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               Sair
             </button>
@@ -146,8 +146,8 @@ export default function DashboardLayout({
                 href={link.href}
                 className={
                   pathname.startsWith(link.href)
-                    ? "flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-base font-semibold leading-6 text-zinc-950 bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
-                    : "flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-base leading-6 text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    ? "flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-base font-semibold leading-6 text-amber-900 bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+                    : "flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-base leading-6 text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                 }
               >
                 <link.icon aria-hidden="true" size={18} />
@@ -164,14 +164,17 @@ export default function DashboardLayout({
             <Link
               href={`/agendar/${slug}`}
               target="_blank"
-              className="font-semibold text-zinc-950 underline"
+              className="font-semibold text-amber-700 underline"
             >
               {origem}/agendar/{slug}
             </Link>
           </div>
         </div>
       )}
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <main
+        key={pathname}
+        className="animar-entrada mx-auto w-full max-w-6xl flex-1 px-4 py-8"
+      >
         {children}
       </main>
     </div>

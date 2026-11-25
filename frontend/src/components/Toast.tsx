@@ -28,7 +28,7 @@ export default function Toast({ message, onDismiss }: ToastProps) {
         type="button"
         onClick={onDismiss}
         aria-label="Fechar notificação"
-        className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+        className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
       >
         <X aria-hidden="true" size={20} />
       </button>

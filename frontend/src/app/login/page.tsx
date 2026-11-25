@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Scissors } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { saveToken } from "@/lib/auth";
 
@@ -33,8 +34,11 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
+      <div className="animar-entrada w-full max-w-sm space-y-6">
         <div>
+          <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-amber-500">
+            <Scissors aria-hidden="true" size={22} className="text-zinc-950" />
+          </div>
           <h1 className="text-2xl font-semibold">Entrar</h1>
           <p className="text-sm text-zinc-500">
             Acesse o painel da sua barbearia.
@@ -76,7 +80,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={carregando}
-            className="w-full rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+            className="w-full rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
           >
             {carregando ? "Entrando..." : "Entrar"}
           </button>
@@ -86,7 +90,7 @@ export default function LoginPage() {
           Ainda não tem conta?{" "}
           <Link
             href="/registro"
-            className="font-medium text-zinc-950"
+            className="font-medium text-amber-600 hover:text-amber-700"
           >
             Cadastre sua barbearia
           </Link>

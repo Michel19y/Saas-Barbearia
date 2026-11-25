@@ -128,7 +128,7 @@ export default function FormaPagamentoDialog({
             onClick={fechar}
             disabled={salvando}
             aria-label="Fechar seleção de pagamento"
-            className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             <X aria-hidden="true" size={20} />
           </button>
@@ -156,7 +156,7 @@ export default function FormaPagamentoDialog({
             }}
             aria-invalid={Boolean(erro)}
             aria-describedby={erro ? "forma-pagamento-erro" : undefined}
-            className="campo-select min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="campo-select min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             <option value="">Selecione uma forma de pagamento</option>
             {OPCOES_PAGAMENTO.map((opcao) => (
@@ -187,7 +187,7 @@ export default function FormaPagamentoDialog({
               }}
               aria-invalid={Boolean(erro)}
               aria-describedby={erro ? "forma-pagamento-erro" : undefined}
-              className="min-h-11 w-full rounded-md border border-zinc-300 px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="min-h-11 w-full rounded-md border border-zinc-300 px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             />
           </div>
         )}
@@ -212,7 +212,7 @@ export default function FormaPagamentoDialog({
             type="button"
             onClick={fechar}
             disabled={salvando}
-            className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             Voltar
           </button>
@@ -220,7 +220,7 @@ export default function FormaPagamentoDialog({
             type="button"
             onClick={() => void confirmar()}
             disabled={salvando}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             {salvando && (
               <Loader2

@@ -287,7 +287,7 @@ export default function AgendamentoDrawer({
               type="button"
               onClick={fechar}
               aria-label="Fechar formulário"
-              className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               <X aria-hidden="true" size={20} />
             </button>
@@ -312,7 +312,7 @@ export default function AgendamentoDrawer({
                       clienteNome: undefined,
                     }));
                   }}
-                  className={`min-h-11 rounded-md border px-3 py-2 text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 ${modoCliente === "cadastrado" ? "border-zinc-950 bg-zinc-100" : "border-zinc-300 bg-white"}`}
+                  className={`min-h-11 rounded-md border px-3 py-2 text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${modoCliente === "cadastrado" ? "border-zinc-950 bg-zinc-100" : "border-zinc-300 bg-white"}`}
                 >
                   Cliente cadastrado
                 </button>
@@ -327,7 +327,7 @@ export default function AgendamentoDrawer({
                       clienteNome: undefined,
                     }));
                   }}
-                  className={`min-h-11 rounded-md border px-3 py-2 text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 ${modoCliente === "rapido" ? "border-zinc-950 bg-zinc-100" : "border-zinc-300 bg-white"}`}
+                  className={`min-h-11 rounded-md border px-3 py-2 text-base font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${modoCliente === "rapido" ? "border-zinc-950 bg-zinc-100" : "border-zinc-300 bg-white"}`}
                 >
                   Anotação rápida
                 </button>
@@ -364,7 +364,7 @@ export default function AgendamentoDrawer({
                     aria-describedby={
                       erros.clienteId ? "agendamento-clienteId-erro" : undefined
                     }
-                    className="campo-select min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    className="campo-select min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                   >
                     <option value="">Selecione um cliente</option>
                     {clientes.map((cliente) => (
@@ -425,7 +425,7 @@ export default function AgendamentoDrawer({
                         : "agendamento-clienteNome-ajuda"
                     }
                     placeholder="Ex.: veio, pia 2"
-                    className="min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                    className="min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                   />
                   <p
                     id="agendamento-clienteNome-ajuda"
@@ -536,7 +536,7 @@ export default function AgendamentoDrawer({
                 aria-describedby={
                   erros.inicio ? "agendamento-inicio-erro" : undefined
                 }
-                className="min-h-11 w-full rounded-md border border-zinc-300 px-3 py-2 text-base leading-6 tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                className="min-h-11 w-full rounded-md border border-zinc-300 px-3 py-2 text-base leading-6 tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
               />
               {erros.inicio && (
                 <p
@@ -565,7 +565,7 @@ export default function AgendamentoDrawer({
                 onChange={(event) =>
                   atualizarCampo("observacao", event.target.value)
                 }
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
               />
             </div>
 
@@ -583,14 +583,14 @@ export default function AgendamentoDrawer({
               <button
                 type="button"
                 onClick={fechar}
-                className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={salvando}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
               >
                 {salvando && (
                   <Loader2
@@ -669,7 +669,7 @@ export default function AgendamentoDrawer({
                 type="button"
                 disabled={salvando}
                 onClick={() => setMostrarConfirmacao(false)}
-                className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
               >
                 Voltar
               </button>
@@ -677,7 +677,7 @@ export default function AgendamentoDrawer({
                 type="button"
                 disabled={salvando}
                 onClick={() => void confirmarEnvio()}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
               >
                 {salvando && (
                   <Loader2

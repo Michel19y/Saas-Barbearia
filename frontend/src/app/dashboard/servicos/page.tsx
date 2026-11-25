@@ -20,7 +20,7 @@ import { formatarPreco } from "@/lib/formato";
 import type { Servico } from "@/lib/types";
 
 const BOTAO_ICONICO =
-  "flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2";
+  "flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2";
 
 function ServicoActions({
   servico,
@@ -180,7 +180,7 @@ export default function ServicosPage() {
         <button
           type="button"
           onClick={(event) => abrirDrawer(null, event.currentTarget)}
-          className="hidden min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 md:flex"
+          className="hidden min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 md:flex"
         >
           <Plus aria-hidden="true" size={20} />
           Novo serviço
@@ -202,7 +202,7 @@ export default function ServicosPage() {
             type="button"
             aria-label="Fechar mensagem de erro"
             onClick={() => setErroAcao(null)}
-            className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-red-800 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-red-800 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             <X aria-hidden="true" size={20} />
           </button>
@@ -237,7 +237,7 @@ export default function ServicosPage() {
             <button
               type="button"
               onClick={() => void carregar()}
-              className="ml-auto min-h-11 shrink-0 rounded-md border border-red-300 px-3 py-2 text-base font-semibold hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="ml-auto min-h-11 shrink-0 rounded-md border border-red-300 px-3 py-2 text-base font-semibold hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               Tentar de novo
             </button>
@@ -259,7 +259,7 @@ export default function ServicosPage() {
             <button
               type="button"
               onClick={(event) => abrirDrawer(null, event.currentTarget)}
-              className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               <Plus aria-hidden="true" size={20} />
               Cadastrar primeiro serviço
@@ -351,7 +351,7 @@ export default function ServicosPage() {
         <button
           type="button"
           onClick={(event) => abrirDrawer(null, event.currentTarget)}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
         >
           <Plus aria-hidden="true" size={20} />
           Novo serviço

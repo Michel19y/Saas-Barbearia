@@ -108,7 +108,7 @@ export default function ConfirmDialog({
             type="button"
             disabled={excluindo}
             onClick={fechar}
-            className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             Cancelar
           </button>
@@ -116,7 +116,7 @@ export default function ConfirmDialog({
             type="button"
             disabled={excluindo}
             onClick={() => void confirmar()}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-red-700 px-4 py-2 text-base font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-red-700 px-4 py-2 text-base font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             {excluindo ? (
               <Loader2

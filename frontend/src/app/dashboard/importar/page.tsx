@@ -184,7 +184,7 @@ export default function ImportarPage() {
           </p>
           <button
             onClick={handleConectar}
-            className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-400"
           >
             Conectar com Google
           </button>
@@ -211,7 +211,7 @@ export default function ImportarPage() {
           <button
             onClick={() => void gerarPrevia({ tipo: "google", planilha: planilha.trim() })}
             disabled={ocupado || !planilha.trim()}
-            className="rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+            className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
           >
             Ver prévia
           </button>

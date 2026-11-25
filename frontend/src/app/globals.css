@@ -18,12 +18,47 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role="tab"] {
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease,
+      opacity 150ms ease;
+  }
+
+  button:not(:disabled):active,
+  a:active {
+    transform: scale(0.98);
+    transition: transform 80ms ease;
+  }
+
   .app-drawer[open] {
     animation: cliente-drawer-mobile 180ms ease-out both;
   }
 
   .client-toast {
     animation: cliente-toast-entrada 160ms ease-out both;
+  }
+
+  .animar-entrada {
+    animation: pagina-entrada 280ms ease-out both;
+  }
+
+  @keyframes pagina-entrada {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes cliente-drawer-mobile {

@@ -35,14 +35,14 @@ export function CampoBusca({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="min-h-11 w-full rounded-md border border-zinc-300 bg-white py-2 pr-12 pl-10 text-base leading-6 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 [&::-webkit-search-cancel-button]:hidden"
+          className="min-h-11 w-full rounded-md border border-zinc-300 bg-white py-2 pr-12 pl-10 text-base leading-6 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 [&::-webkit-search-cancel-button]:hidden"
         />
         {value && (
           <button
             type="button"
             onClick={() => onChange("")}
             aria-label="Limpar busca"
-            className="absolute top-1/2 right-1 flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="absolute top-1/2 right-1 flex size-11 -translate-y-1/2 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             <X aria-hidden="true" size={20} />
           </button>

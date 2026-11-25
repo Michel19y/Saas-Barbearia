@@ -152,7 +152,7 @@ export default function AfetadosDialog({
             <button
               type="button"
               onClick={onFechar}
-              className="min-h-11 rounded-md bg-zinc-950 px-4 text-base font-semibold text-white hover:bg-zinc-800"
+              className="min-h-11 rounded-md bg-amber-500 px-4 text-base font-semibold text-zinc-950 hover:bg-amber-400"
             >
               Concluído
             </button>

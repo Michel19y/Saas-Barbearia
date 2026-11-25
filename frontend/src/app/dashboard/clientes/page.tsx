@@ -28,7 +28,7 @@ import { authFetch } from "@/lib/auth";
 import type { Cliente } from "@/lib/types";
 
 const BOTAO_ICONICO =
-  "flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2";
+  "flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-700 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2";
 
 function normalizar(valor: string) {
   return valor
@@ -155,7 +155,7 @@ function ClienteActions({
                 event.stopPropagation();
                 onExcluir(cliente, event.currentTarget);
               }}
-              className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-3 text-base font-semibold text-red-700 shadow-lg hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md border border-zinc-200 bg-white px-3 text-base font-semibold text-red-700 shadow-lg hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               <Trash2 aria-hidden="true" size={16} />
               Excluir
@@ -360,7 +360,7 @@ export default function ClientesPage() {
         <button
           type="button"
           onClick={(event) => abrirDrawer(null, event.currentTarget)}
-          className="hidden min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 md:flex"
+          className="hidden min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 md:flex"
         >
           <Plus aria-hidden="true" size={20} />
           Novo cliente
@@ -418,7 +418,7 @@ export default function ClientesPage() {
             <button
               type="button"
               onClick={() => void carregar()}
-              className="mt-4 min-h-11 rounded-md border border-zinc-300 bg-white px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="mt-4 min-h-11 rounded-md border border-zinc-300 bg-white px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               Tentar novamente
             </button>
@@ -440,7 +440,7 @@ export default function ClientesPage() {
             <button
               type="button"
               onClick={(event) => abrirDrawer(null, event.currentTarget)}
-              className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               <Plus aria-hidden="true" size={20} />
               Cadastrar primeiro cliente
@@ -456,7 +456,7 @@ export default function ClientesPage() {
               onClick={(event) =>
                 abrirDrawer(null, event.currentTarget, mensagemBusca)
               }
-              className="mt-4 min-h-11 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+              className="mt-4 min-h-11 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
             >
               Cadastrar &apos;{mensagemBusca}&apos;
             </button>
@@ -488,7 +488,7 @@ export default function ClientesPage() {
                             abrirDrawer(cliente, event.currentTarget)
                           }
                           aria-label={`Editar cliente ${cliente.nome}`}
-                          className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+                          className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
                         />
                         <div className="relative z-10 pointer-events-none flex items-start gap-3">
                           <ClienteAvatar nome={cliente.nome} />
@@ -616,7 +616,7 @@ export default function ClientesPage() {
         <button
           type="button"
           onClick={(event) => abrirDrawer(null, event.currentTarget)}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
         >
           <Plus aria-hidden="true" size={20} />
           Novo cliente

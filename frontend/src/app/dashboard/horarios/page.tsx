@@ -25,9 +25,9 @@ import {
 
 const BARBEARIA = "barbearia";
 const CAMPO =
-  "min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:bg-zinc-100 disabled:text-zinc-500";
+  "min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 disabled:bg-zinc-100 disabled:text-zinc-500";
 const BOTAO_PRIMARIO =
-  "flex min-h-11 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-base font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60";
+  "flex min-h-11 items-center justify-center gap-2 rounded-md bg-amber-500 px-4 py-2 text-base font-semibold text-zinc-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60";
 const BOTAO_SECUNDARIO =
   "min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-base font-semibold hover:bg-zinc-50 disabled:opacity-60";
 
@@ -442,7 +442,7 @@ export default function HorariosPage() {
             type="button"
             aria-selected={alvo === op.id}
             onClick={() => trocarAlvo(op.id)}
-            className={`min-h-11 rounded-full border px-4 text-base font-medium ${alvo === op.id ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-300 hover:bg-zinc-50"}`}
+            className={`min-h-11 rounded-full border px-4 text-base font-medium ${alvo === op.id ? "border-amber-500 bg-amber-500 text-zinc-950" : "border-zinc-300 hover:bg-zinc-50"}`}
           >
             {op.nome}
           </button>

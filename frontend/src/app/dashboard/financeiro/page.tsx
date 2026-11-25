@@ -180,9 +180,9 @@ export default function FinanceiroPage() {
             type="button"
             aria-pressed={periodo === item.valor}
             onClick={() => setPeriodo(item.valor)}
-            className={`min-h-11 shrink-0 rounded-md border px-4 py-2 text-base font-semibold whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 ${
+            className={`min-h-11 shrink-0 rounded-md border px-4 py-2 text-base font-semibold whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${
               periodo === item.valor
-                ? "border-zinc-950 bg-zinc-950 text-white"
+                ? "border-amber-500 bg-amber-500 text-zinc-950"
                 : "border-zinc-300 text-zinc-800 hover:bg-zinc-50"
             }`}
           >
@@ -205,7 +205,7 @@ export default function FinanceiroPage() {
           <button
             type="button"
             onClick={() => void carregar(periodo)}
-            className="ml-auto min-h-11 shrink-0 rounded-md border border-red-300 px-3 py-2 text-base font-semibold hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
+            className="ml-auto min-h-11 shrink-0 rounded-md border border-red-300 px-3 py-2 text-base font-semibold hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
           >
             Tentar de novo
           </button>
